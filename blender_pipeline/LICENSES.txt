@@ -1,0 +1,42 @@
+================================================================================
+STADIUMX — BLENDER PIPELINE TEXTURE & ASSET LICENSES
+================================================================================
+
+1. GENERATED 2K PBR TEXTURES & PROCEDURAL SHADERS (CC0 / PUBLIC DOMAIN DEDICATION)
+--------------------------------------------------------------------------------
+All procedural Blender shader node graphs and baked 2K (2048x2048) PBR textures
+in `/blender_pipeline/textures/` are generated deterministically from mathematical
+functions (NumPy / Blender ShaderNodes) specifically for STADIUMX and are dedicated
+to the Public Domain (CC0 1.0 Universal):
+
+- `/blender_pipeline/textures/grass_outfield/albedo.png`    (2048x2048 RGB PNG)
+  Clean alternating mown grass stripes, diamond cross-cut modulation, and organic
+  brown/sandy loam soil wear patches near the 22-yard pitch and bowler run-ups.
+- `/blender_pipeline/textures/grass_outfield/normal.png`    (2048x2048 RGB PNG)
+  Tangent-space normal map encoding directional mower blade lay and soil grain.
+- `/blender_pipeline/textures/grass_outfield/roughness.png` (2048x2048 Grayscale PNG)
+  Alternating mower pass roughness (0.52-0.65) and compacted soil roughness (0.84).
+- `/blender_pipeline/textures/grass_outfield/ao.png`        (2048x2048 Grayscale PNG)
+  Micro-cavity ambient occlusion for turf and worn earth transitions.
+
+- `/blender_pipeline/textures/pitch_clay/albedo.png`        (2048x512 RGB PNG)
+  Rolled beige cricket clay with bowler footmark wear zones and crisp white
+  bowling, popping, and return creases.
+- `/blender_pipeline/textures/pitch_clay/normal.png`        (2048x512 RGB PNG)
+  Tangent-space normal map for compacted clay micro-texture.
+- `/blender_pipeline/textures/pitch_clay/roughness.png`     (2048x512 Grayscale PNG)
+  Surface roughness map across the 22-yard pitch strip.
+
+- `/blender_pipeline/textures/ad_boards/albedo.png`         (2048x256 RGB PNG)
+  UV0-mapped perimeter LED advertising ribbon texture (swappable in Three.js).
+- `/blender_pipeline/textures/screens/scoreboard_albedo.png` (1024x512 RGB PNG)
+  UV0-mapped 8K scoreboard and corner LED replay screen canvas texture.
+
+2. EXTERNAL CC0 PBR TEXTURE DROP-IN CONVENTION
+--------------------------------------------------------------------------------
+If external CC0 textures (e.g., from Poly Haven https://polyhaven.com or
+ambientCG https://ambientcg.com under the CC0 1.0 Universal license) are placed
+in `/blender_pipeline/textures/<material_name>/{albedo,normal,roughness,ao}.jpg`
+or `.png`, the pipeline automatically loads and binds them to the corresponding
+Principled BSDF sockets.
+================================================================================

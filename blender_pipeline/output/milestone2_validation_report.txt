@@ -1,0 +1,84 @@
+============================================================================
+STADIUMX — MILESTONE 2 SEAT ANCHOR & GEOMETRY VALIDATION REPORT
+============================================================================
+Total Validated Seats          : 51,772
+Duplicate seatId Count         : 0 (PASS)
+Seats Outside Block Bounds     : 0 (PASS)
+Seats Intersecting Steps/Rails : 0 (PASS)
+Wheelchair Accessible Bays     : 144
+Aisle-Adjacent Seats           : 4,248
+Eye-Height Formula             : z + 1.15 m (0.40 m seat pan + 0.75 m seated torso/head)
+----------------------------------------------------------------------------
+ANCHOR EXPORT FILE SIZES:
+  - seat_anchors.json : 12,989,798 bytes (12.39 MB)
+  - seat_anchors.bin  : 1,449,632 bytes (1.38 MB) [32 B/seat binary]
+  - seat_anchors.csv  : 5,534,731 bytes (5.28 MB)
+----------------------------------------------------------------------------
+MASTER SEAT LOD TRIANGLE COUNTS:
+  - seat_lod0.glb : 1,976 triangles (1,020 verts, 79,372 bytes)
+  - seat_lod1.glb : 520 triangles (276 verts, 23,708 bytes)
+  - seat_lod2.glb : 100 triangles (56 verts, 12,048 bytes)
+  - seat_vip_lod0.glb : 1,932 triangles (996 verts, 80,292 bytes)
+----------------------------------------------------------------------------
+SEATS PER CANONICAL TICKET CATEGORY:
+  - Standard     : 36,948 seats
+  - Premium      : 6,286 seats
+  - VIP          : 8,394 seats
+  - Accessible   : 144 seats
+----------------------------------------------------------------------------
+SEATS PER MOSAIC COLOR (SEPARATE FROM TICKET CATEGORY):
+  - AccessibleTeal : 144 seats
+  - RoyalBlue      : 11,324 seats
+  - CyanBlue       : 2,041 seats
+  - Yellow         : 11,646 seats
+  - NavyBlue       : 780 seats
+  - Orange         : 17,443 seats
+  - VIPNavyGold    : 8,394 seats
+----------------------------------------------------------------------------
+SEATS PER STAND:
+  - Stand N   : 7,506 seats
+  - Stand NE  : 5,633 seats
+  - Stand E   : 7,108 seats
+  - Stand SE  : 5,639 seats
+  - Stand S   : 7,506 seats
+  - Stand SW  : 5,633 seats
+  - Stand W   : 7,108 seats
+  - Stand NW  : 5,639 seats
+----------------------------------------------------------------------------
+SEATS PER TIER:
+  - Tier T1   : 16,500 seats
+  - Tier T2   : 8,466 seats
+  - Tier T3   : 26,806 seats
+----------------------------------------------------------------------------
+ASCII TOP-DOWN SEAT DENSITY MAP (Pitch Axis = Horizontal X):
+                                                                
+                     .:-.++*+=#*#=+*++.-:.                      
+                .:: +***-+. +-#*#-+ .+-***+ ::.                 
+             ..+***- *#%#-*=+-***-+=*-#%#* --=*+..              
+           -+*===#%#-.+**=*-==###==-*=**+.:*+-==**+-            
+         -+==-:*+-+##-.***-==-***-==-***.-+=--*%**==+-          
+       .+****++-=+=+**-.-:..       ..:-.-=:-=#*+++* :*+.        
+      =*-==#*+#+-:==:.                   .:=**==*.+*==+*=       
+     :+=.+*:+****-.                         .-+::*+=%#**+:      
+    +=-.:=:*:.+-.                             .-+**%-=:.-=+     
+   =***##=+::--                                 --::+=##***=    
+  .===+*-#***-                                   -***#-*+===.   
+  =*: %--+:==                                     ==:+--% :*=   
+  =+++#-+=-+-                                     -+-=+-#+++=   
+  **#*@=%***-                                     -***%=@*#**   
+  =+++#-+=-+-                                     -+-=+-#+++=   
+  =*: %--+:==                                     ==:+--% :*=   
+  .===+*-#***-                                   -***#-*+===.   
+   =***##=+::--                                 --::+=##***=    
+    +=-.:=-%**+-.                             .-+.:*:=:.-=+     
+     :+**#%=+*::+-.                         .-****+:*+.=+:      
+      =*+==*+.*==**=:.                   .:==:-+#+*#==-*=       
+       .+*: *+++*#=-:=-.-:..       ..:-.-**+=+=-++****+.        
+         -+==**%*--=+-.***-==-***-==-***.-##+-+*:-==+-          
+           -+**==-+*:.+**=*-==###==-*=**+.-#%#===*+-            
+             ..+*=-- *#%#-*=+-***-+=*-#%#* -***+..              
+                .:: +***-+. +-#*#-+ .+-***+ ::.                 
+                     .:-.++*+=#*#=+*++.-:.                      
+                                                                
+                                                                
+============================================================================

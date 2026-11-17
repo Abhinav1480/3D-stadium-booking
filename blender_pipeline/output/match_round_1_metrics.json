@@ -1,0 +1,57 @@
+{
+  "reference": {
+    "overall_mean_srgb": [
+      79.33000183105469,
+      104.1500015258789,
+      136.16000366210938
+    ],
+    "seat_mean_srgb": [
+      30.600000381469727,
+      66.62999725341797,
+      112.0
+    ],
+    "seat_area_fraction": 0.672,
+    "concrete_mean_srgb": [
+      222.4499969482422,
+      223.3000030517578,
+      224.6999969482422
+    ],
+    "concrete_area_fraction": 0.22,
+    "edge_sharpness": 6.969
+  },
+  "rendered": {
+    "overall_mean_srgb": [
+      73.80999755859375,
+      93.87000274658203,
+      133.33999633789062
+    ],
+    "seat_mean_srgb": [
+      49.220001220703125,
+      73.44999694824219,
+      122.05999755859375
+    ],
+    "seat_area_fraction": 0.781,
+    "concrete_mean_srgb": [
+      206.33999633789062,
+      209.27999877929688,
+      214.25
+    ],
+    "concrete_area_fraction": 0.126,
+    "edge_sharpness": 3.788
+  },
+  "seat_rgb_l2_distance": 22.24,
+  "concrete_rgb_l2_distance": 23.78,
+  "histogram_intersection_rgb": [
+    0.543,
+    0.691,
+    0.719
+  ],
+  "histogram_intersection_mean": 0.651,
+  "edge_sharpness_ratio": 0.544,
+  "round": 1,
+  "render_time_sec": 210.93,
+  "highpoly_seat_triangles": 33164,
+  "highpoly_seat_vertices": 16812,
+  "match_render_path": "/app/applet/blender_pipeline/output/match_round_1.png",
+  "side_by_side_path": "/app/applet/blender_pipeline/output/match_round_1_side_by_side.png"
+}

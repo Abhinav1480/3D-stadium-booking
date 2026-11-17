@@ -1,0 +1,140 @@
+{
+  "generator": "Blender 3.4.1 Python (bpy + bmesh + io_scene_gltf2)",
+  "coordinateSystem": "glTF 2.0 Y-Up (1 unit = 1 metre, exact 1:1 parity with DEFAULT_STADIUM_SPEC)",
+  "assets": {
+    "stadiumVenueGlb": "/models/stadium_venue.glb",
+    "stadiumVenueSizeBytes": 8837468,
+    "seatHighDetailGlb": "/models/seat_high_detail.glb",
+    "seatHighDetailSizeBytes": 8880,
+    "spectatorCrowdGlb": "/models/spectator_crowd.glb",
+    "spectatorCrowdSizeBytes": 8932
+  },
+  "geometryStats": {
+    "stadiumMeshObjects": 20,
+    "stadiumVertices": 65807,
+    "stadiumFaces": 54245,
+    "instancedSeatsCount": 4800,
+    "meshes": [
+      {
+        "name": "Outfield_Turf_Field",
+        "vertices": 129,
+        "faces": 128,
+        "material": "Outfield_Bermuda_Turf"
+      },
+      {
+        "name": "Cricket_Pitch_22Yard",
+        "vertices": 12,
+        "faces": 3,
+        "material": "Pitch_22Yard_Clay"
+      },
+      {
+        "name": "Cricket_Stumps_And_Bails",
+        "vertices": 176,
+        "faces": 108,
+        "material": "Polished_Ash_Stumps"
+      },
+      {
+        "name": "Boundary_Padded_Rope",
+        "vertices": 960,
+        "faces": 720,
+        "material": "Boundary_Cushion_Rope"
+      },
+      {
+        "name": "Perimeter_LED_Sponsor_Boards",
+        "vertices": 936,
+        "faces": 702,
+        "material": "Perimeter_Sponsor_LED"
+      },
+      {
+        "name": "Team_Boundary_Dugouts",
+        "vertices": 16,
+        "faces": 12,
+        "material": "VIP_Suite_Reflective_Glass"
+      },
+      {
+        "name": "Seating_Bowl_Stepped_Tiers",
+        "vertices": 51072,
+        "faces": 42560,
+        "material": "Stadium_Precast_Concrete"
+      },
+      {
+        "name": "Radial_Aisle_Safety_Stairs",
+        "vertices": 1920,
+        "faces": 480,
+        "material": "Aisle_Safety_Stair"
+      },
+      {
+        "name": "Tier_Glass_Balustrades",
+        "vertices": 3456,
+        "faces": 2592,
+        "material": "VIP_Suite_Reflective_Glass"
+      },
+      {
+        "name": "VIP_Hospitality_Glass_Curtain",
+        "vertices": 1152,
+        "faces": 864,
+        "material": "VIP_Suite_Reflective_Glass"
+      },
+      {
+        "name": "VIP_Hospitality_Warm_Lounges",
+        "vertices": 576,
+        "faces": 144,
+        "material": "VIP_Interior_Warm_Soffit"
+      },
+      {
+        "name": "Stadium_Substructure_And_Concourse",
+        "vertices": 2304,
+        "faces": 1728,
+        "material": "Stadium_Substructure_Dark"
+      },
+      {
+        "name": "Cantilevered_PTFE_Roof_Canopy",
+        "vertices": 512,
+        "faces": 384,
+        "material": "Cantilever_PTFE_Membrane"
+      },
+      {
+        "name": "Roof_Steel_SpaceFrame_Trusses",
+        "vertices": 512,
+        "faces": 384,
+        "material": "Structural_Truss_Steel"
+      },
+      {
+        "name": "SightScreens_And_South_Media_Pod",
+        "vertices": 178,
+        "faces": 332,
+        "material": "SightScreen_Louvered_Matte"
+      },
+      {
+        "name": "Giant_8K_LED_Scoreboard_Screens",
+        "vertices": 8,
+        "faces": 2,
+        "material": "Giant_8K_Scoreboard_LED"
+      },
+      {
+        "name": "Giant_Scoreboard_Steel_Frames",
+        "vertices": 16,
+        "faces": 12,
+        "material": "Structural_Truss_Steel"
+      },
+      {
+        "name": "Floodlight_Steel_Towers",
+        "vertices": 336,
+        "faces": 204,
+        "material": "Structural_Truss_Steel"
+      },
+      {
+        "name": "Floodlight_LED_Luminaire_Arrays",
+        "vertices": 24,
+        "faces": 6,
+        "material": "Floodlight_Luminaire_Array"
+      },
+      {
+        "name": "Perimeter_Plaza_Trees",
+        "vertices": 1512,
+        "faces": 2880,
+        "material": "Plaza_Canopy_Foliage"
+      }
+    ]
+  }
+}

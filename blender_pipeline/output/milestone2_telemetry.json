@@ -1,0 +1,142 @@
+{
+  "milestone": "Milestone 2 (Revised) \u2014 Master Seats (LOD0-LOD2 + Wide VIP), Orange/Blue/Yellow Mosaic & JSON/CSV/Binary Anchors",
+  "total_duration_sec": 253.51,
+  "lod_exports": {
+    "seat_lod0": {
+      "path": "/app/applet/blender_pipeline/output/seat_lod0.glb",
+      "size_bytes": 79372,
+      "triangles": 1976,
+      "vertices": 1020
+    },
+    "seat_lod1": {
+      "path": "/app/applet/blender_pipeline/output/seat_lod1.glb",
+      "size_bytes": 23708,
+      "triangles": 520,
+      "vertices": 276
+    },
+    "seat_lod2": {
+      "path": "/app/applet/blender_pipeline/output/seat_lod2.glb",
+      "size_bytes": 12048,
+      "triangles": 100,
+      "vertices": 56
+    },
+    "seat_vip_lod0": {
+      "path": "/app/applet/blender_pipeline/output/seat_vip_lod0.glb",
+      "size_bytes": 80292,
+      "triangles": 1932,
+      "vertices": 996
+    }
+  },
+  "anchor_files": {
+    "json_path": "/app/applet/blender_pipeline/output/seat_anchors.json",
+    "json_size_bytes": 12989798,
+    "bin_path": "/app/applet/blender_pipeline/output/seat_anchors.bin",
+    "bin_size_bytes": 1449632,
+    "csv_path": "/app/applet/blender_pipeline/output/seat_anchors.csv",
+    "csv_size_bytes": 5534731,
+    "report_path": "/app/applet/blender_pipeline/output/milestone2_validation_report.txt"
+  },
+  "validation_summary": {
+    "total_seats": 51772,
+    "duplicate_seat_ids": 0,
+    "seats_outside_block_bounds": 0,
+    "seats_intersecting_steps_or_rails": 0,
+    "accessible_seats": 144,
+    "aisle_adjacent_seats": 4248,
+    "seats_per_stand": {
+      "N": 7506,
+      "NE": 5633,
+      "E": 7108,
+      "SE": 5639,
+      "S": 7506,
+      "SW": 5633,
+      "W": 7108,
+      "NW": 5639
+    },
+    "seats_per_tier": {
+      "T1": 16500,
+      "T2": 8466,
+      "T3": 26806
+    },
+    "seats_per_category": {
+      "Standard": 36948,
+      "Premium": 6286,
+      "VIP": 8394,
+      "Accessible": 144
+    },
+    "seats_per_mosaic_color": {
+      "AccessibleTeal": 144,
+      "RoyalBlue": 11324,
+      "CyanBlue": 2041,
+      "Yellow": 11646,
+      "NavyBlue": 780,
+      "Orange": 17443,
+      "VIPNavyGold": 8394
+    }
+  },
+  "instancing": {
+    "linked_lod0_instances": 1099,
+    "mosaic_seats": 50673,
+    "mosaic_triangles": 5067300
+  },
+  "render_outputs": {
+    "blend_file": "/app/applet/blender_pipeline/output/stadiumx_milestone2_seats.blend",
+    "blend_size_bytes": 513874184,
+    "eye_anchor_used": {
+      "seatId": "S-T1-B03-R08-S10",
+      "stand": "S",
+      "tier": "T1",
+      "block": "S-T1-B03",
+      "row": 8,
+      "number": 10,
+      "category": "Premium",
+      "mosaicColor": "Orange",
+      "x": -1.4921,
+      "y": -78.4906,
+      "z": 3.9401,
+      "yaw": 88.415,
+      "eyeHeight": 5.0901,
+      "accessible": false,
+      "aisleAdjacent": false
+    },
+    "closeup_anchor_used": {
+      "seatId": "S-T1-B03-R05-S01",
+      "stand": "S",
+      "tier": "T1",
+      "block": "S-T1-B03",
+      "row": 5,
+      "number": 1,
+      "category": "Premium",
+      "mosaicColor": "CyanBlue",
+      "x": -5.7901,
+      "y": -75.8532,
+      "z": 3.0088,
+      "yaw": 85.593,
+      "eyeHeight": 4.1588,
+      "accessible": false,
+      "aisleAdjacent": true
+    },
+    "renders": {
+      "view1_aerial_day": {
+        "path": "/app/applet/blender_pipeline/output/milestone2_view1_aerial_day.png",
+        "render_time_sec": 35.68,
+        "size_bytes": 1900405
+      },
+      "view3_seats_3m_closeup": {
+        "path": "/app/applet/blender_pipeline/output/milestone2_view3_seats_3m_closeup.png",
+        "render_time_sec": 64.73,
+        "size_bytes": 2714290
+      },
+      "view3b_vip_seats_3m_closeup": {
+        "path": "/app/applet/blender_pipeline/output/milestone2_view3b_vip_seats_3m_closeup.png",
+        "render_time_sec": 66.42,
+        "size_bytes": 2629775
+      },
+      "view4_seated_eye_view": {
+        "path": "/app/applet/blender_pipeline/output/milestone2_view4_seated_eye_view.png",
+        "render_time_sec": 63.81,
+        "size_bytes": 2501250
+      }
+    }
+  }
+}

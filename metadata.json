@@ -1,0 +1,6 @@
+{
+  "name": "STADIUMX — 3D Cricket Stadium & Seat Booking",
+  "description": "Photorealistic 3D cricket stadium exploration, first-person view-from-seat sightline simulation, and real-time atomic seat booking platform.",
+  "requestFramePermissions": ["camera"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

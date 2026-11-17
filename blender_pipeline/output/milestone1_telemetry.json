@@ -1,0 +1,60 @@
+{
+  "milestone": "Milestone 1 \u2014 Stadium Bowl, Multi-Tier Seating Architecture, Exterior Colonnade & Space-Frame Roof",
+  "blender_version": "3.4.1",
+  "blend_file": "/app/applet/blender_pipeline/output/stadiumx_milestone1_bowl_roof.blend",
+  "blend_file_size_bytes": 8744116,
+  "renders": {
+    "view1_aerial_bowl": "/app/applet/blender_pipeline/output/milestone1_view1_aerial_bowl.png",
+    "view2_interior_tiers": "/app/applet/blender_pipeline/output/milestone1_view2_interior_tiers.png",
+    "view3_roof_truss_detail": "/app/applet/blender_pipeline/output/milestone1_view3_roof_truss_detail.png"
+  },
+  "total_vertices": 77801,
+  "total_faces": 48978,
+  "meshes": [
+    {
+      "name": "EXTERIOR_STRUCTURAL_COLONNADE",
+      "vertices": 2496,
+      "faces": 1632
+    },
+    {
+      "name": "GROUND_TURF_REFERENCE",
+      "vertices": 97,
+      "faces": 96
+    },
+    {
+      "name": "PITCH_AXIS_REFERENCE",
+      "vertices": 4,
+      "faces": 1
+    },
+    {
+      "name": "ROOF_PTFE_PLEATED_MEMBRANE",
+      "vertices": 1728,
+      "faces": 1536
+    },
+    {
+      "name": "ROOF_SPACEFRAME_STEEL_TRUSSES",
+      "vertices": 29068,
+      "faces": 18816
+    },
+    {
+      "name": "STADIUM_STEPPED_BOWL_TIERS",
+      "vertices": 34300,
+      "faces": 20872
+    },
+    {
+      "name": "TIER_BALUSTRADES_AND_HANDRAILS",
+      "vertices": 9720,
+      "faces": 5832
+    },
+    {
+      "name": "URBAN_SURROUND_GROUND",
+      "vertices": 4,
+      "faces": 1
+    },
+    {
+      "name": "VIP_HOSPITALITY_CURTAIN_WALL",
+      "vertices": 384,
+      "faces": 192
+    }
+  ]
+}

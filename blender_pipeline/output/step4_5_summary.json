@@ -1,0 +1,49 @@
+{
+  "lod_summary": {
+    "lod_counts": {
+      "SEAT_STD_LOD0": {
+        "triangles": 9132,
+        "vertices": 4612
+      },
+      "SEAT_STD_LOD1": {
+        "triangles": 1884,
+        "vertices": 966
+      },
+      "SEAT_STD_LOD2": {
+        "triangles": 428,
+        "vertices": 232
+      },
+      "SEAT_STD_LOD3": {
+        "triangles": 108,
+        "vertices": 59
+      },
+      "SEAT_VIP_LOD0": {
+        "triangles": 9260,
+        "vertices": 4678
+      },
+      "SEAT_VIP_LOD1": {
+        "triangles": 1884,
+        "vertices": 966
+      }
+    },
+    "glb_path": "/app/applet/blender_pipeline/output/glb/stadiumx_seat_lods.glb",
+    "glb_bytes": 1381928,
+    "atlas_paths": {
+      "normal": "/app/applet/blender_pipeline/textures/seat_atlas_2k/seat_atlas_normal_2k.png",
+      "ao": "/app/applet/blender_pipeline/textures/seat_atlas_2k/seat_atlas_ao_2k.png",
+      "curvature": "/app/applet/blender_pipeline/textures/seat_atlas_2k/seat_atlas_curvature_2k.png",
+      "thickness": "/app/applet/blender_pipeline/textures/seat_atlas_2k/seat_atlas_thickness_2k.png",
+      "id_mask": "/app/applet/blender_pipeline/textures/seat_atlas_2k/seat_atlas_id_mask_2k.png",
+      "sdf_numbers": "/app/applet/blender_pipeline/textures/seat_atlas_2k/seat_number_sdf_atlas_1k.png"
+    }
+  },
+  "step5_proof_renders": {
+    "stadium_seat_proof_1m.png": "/app/applet/blender_pipeline/output/stadium_seat_proof_1m.png",
+    "stadium_seat_proof_3m.png": "/app/applet/blender_pipeline/output/stadium_seat_proof_3m.png",
+    "stadium_seat_proof_15m.png": "/app/applet/blender_pipeline/output/stadium_seat_proof_15m.png",
+    "stadium_seat_proof_seated_fpv.png": "/app/applet/blender_pipeline/output/stadium_seat_proof_seated_fpv.png",
+    "stadium_seat_proof_aerial.png": "/app/applet/blender_pipeline/output/stadium_seat_proof_aerial.png",
+    "stadium_pitch_and_ground_proof.png": "/app/applet/blender_pipeline/output/stadium_pitch_and_ground_proof.png"
+  },
+  "total_time_sec": 158.3
+}
