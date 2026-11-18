@@ -23,6 +23,7 @@ import {
 import { useStadiumStore, type QualityPreset, type RoofMode } from '../store/useStadiumStore';
 import { DEFAULT_STADIUM_SPEC } from '../shared/stadiumSpec';
 import { soundEngine } from '../utils/soundEngine';
+import { recordReactRender } from '../utils/perfProfiler';
 
 function formatSunClock(hours: number): string {
   const h = Math.floor(hours);
@@ -33,7 +34,8 @@ function formatSunClock(hours: number): string {
 export const BottomControlDock: React.FC<{
   onHoldSelectedSeats: () => Promise<void>;
   holdingSeats: boolean;
-}> = ({ onHoldSelectedSeats, holdingSeats }) => {
+}> = React.memo(({ onHoldSelectedSeats, holdingSeats }) => {
+  recordReactRender('BottomControlDock');
   const matches = useStadiumStore((s) => s.matches);
   const activeMatchId = useStadiumStore((s) => s.activeMatchId);
   const setActiveMatchId = useStadiumStore((s) => s.setActiveMatchId);
@@ -806,4 +808,4 @@ export const BottomControlDock: React.FC<{
       </div>
     </div>
   );
-};
+});

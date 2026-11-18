@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useStadiumStore } from '../store/useStadiumStore';
 import { resolveSeatAvailabilityStatus } from '../shared/seatingSpatial';
+import { recordReactRender } from '../utils/perfProfiler';
 
 function formatCountdown(sec: number): string {
   const m = Math.floor(sec / 60);
@@ -10,7 +11,8 @@ function formatCountdown(sec: number): string {
 
 export const SeatHoverTooltip: React.FC<{
   tooltipRef: React.RefObject<HTMLDivElement | null>;
-}> = ({ tooltipRef }) => {
+}> = React.memo(({ tooltipRef }) => {
+  recordReactRender('SeatHoverTooltip');
   const hoveredSeat = useStadiumStore((s) => s.hoveredSeat);
   const cameraMode = useStadiumStore((s) => s.cameraMode);
   const inventoryBySeatId = useStadiumStore((s) => s.inventoryBySeatId);
@@ -92,4 +94,4 @@ export const SeatHoverTooltip: React.FC<{
       </div>
     </div>
   );
-};
+});

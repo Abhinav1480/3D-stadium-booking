@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useStadiumStore } from '../store/useStadiumStore';
+import { recordReactRender } from '../utils/perfProfiler';
 
 function formatCountdown(sec: number): string {
   const m = Math.floor(sec / 60);
@@ -7,7 +8,8 @@ function formatCountdown(sec: number): string {
   return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
 }
 
-export const SeatAvailabilityLegend: React.FC = () => {
+export const SeatAvailabilityLegend: React.FC = React.memo(() => {
+  recordReactRender('SeatAvailabilityLegend');
   const seats = useStadiumStore((s) => s.seats);
   const inventoryBySeatId = useStadiumStore((s) => s.inventoryBySeatId);
   const inventoryVersion = useStadiumStore((s) => s.inventoryVersion);
@@ -291,4 +293,4 @@ export const SeatAvailabilityLegend: React.FC = () => {
       </aside>
     </>
   );
-};
+});

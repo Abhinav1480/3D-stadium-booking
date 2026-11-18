@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import express from 'express';
 import { createServer } from 'node:http';
 import path from 'node:path';
@@ -12,6 +13,7 @@ import {
   signSessionToken,
   type AuthRequest,
 } from './src/middleware/auth.ts';
+import { isDatabaseConfigured } from './src/db/index.ts';
 import {
   adminSetSeatBlockState,
   cancelBookingAndRefund,
@@ -45,6 +47,7 @@ import {
   recommendSeats,
   type SeatWithInventory,
 } from './src/shared/stadiumSpec.ts';
+import { buildDeterministicStaticStadiumBundle } from './src/shared/staticStadiumFallback.ts';
 import { computeRazorpaySignature } from './src/shared/security.ts';
 
 async function startServer() {
@@ -96,6 +99,7 @@ async function startServer() {
 
   // Periodic background sweep for expired seat holds every 5 seconds
   setInterval(async () => {
+    if (!isDatabaseConfigured()) return;
     try {
       const expiredBatches = await sweepExpiredHolds();
       for (const batch of expiredBatches) {
@@ -123,10 +127,25 @@ async function startServer() {
 
   // Auth & Role Switching Endpoints
   app.get('/api/auth/me', requireAuth, async (req: AuthRequest, res) => {
+    if (!req.user) {
+      return res.status(401).json({ error: 'Not authenticated' });
+    }
+    const buildStatelessAuthResponse = () => {
+      const fallbackUser = {
+        uid: req.user!.uid,
+        email: req.user!.email,
+        name: req.user!.name,
+        role: req.user!.role,
+      };
+      const token = signSessionToken(fallbackUser);
+      return { user: fallbackUser, token };
+    };
+
+    if (!isDatabaseConfigured()) {
+      return res.json(buildStatelessAuthResponse());
+    }
+
     try {
-      if (!req.user) {
-        return res.status(401).json({ error: 'Not authenticated' });
-      }
       const dbUser = await getOrCreateUser(
         req.user.uid,
         req.user.email,
@@ -140,8 +159,8 @@ async function startServer() {
         role: dbUser.role as 'USER' | 'ADMIN' | 'GATE_STAFF',
       });
       res.json({ user: dbUser, token });
-    } catch (error: any) {
-      res.status(500).json({ error: error.message || 'Failed to load profile' });
+    } catch {
+      res.json(buildStatelessAuthResponse());
     }
   });
 
@@ -189,11 +208,25 @@ async function startServer() {
 
   // Stadium Specification & Seats
   app.get('/api/stadium', async (_req, res) => {
+    const getFallbackStadium = () => {
+      const b = buildDeterministicStaticStadiumBundle(DEFAULT_STADIUM_SPEC);
+      return {
+        stadium: b.stadium,
+        categories: b.categories,
+        stands: b.stands,
+        blocks: b.blocks,
+      };
+    };
+
+    if (!isDatabaseConfigured()) {
+      return res.json(getFallbackStadium());
+    }
+
     try {
       const bundle = await getStadiumBundle();
       res.json(bundle);
-    } catch (error: any) {
-      res.status(500).json({ error: error.message || 'Failed to load stadium' });
+    } catch {
+      res.json(getFallbackStadium());
     }
   });
 
@@ -203,7 +236,16 @@ async function startServer() {
   app.get('/api/stadium/seats', async (req, res) => {
     try {
       if (!cachedSeatsJsonBuf) {
-        const staticSeats = await getStaticStadiumSeats();
+        let staticSeats: unknown[];
+        if (isDatabaseConfigured()) {
+          try {
+            staticSeats = await getStaticStadiumSeats();
+          } catch {
+            staticSeats = buildDeterministicStaticStadiumBundle(DEFAULT_STADIUM_SPEC).seats;
+          }
+        } else {
+          staticSeats = buildDeterministicStaticStadiumBundle(DEFAULT_STADIUM_SPEC).seats;
+        }
         cachedSeatsJsonBuf = Buffer.from(JSON.stringify({ seats: staticSeats }));
         cachedSeatsGzipBuf = gzipSync(cachedSeatsJsonBuf, { level: 6 });
       }
@@ -227,13 +269,23 @@ async function startServer() {
       const timeOfDay = req.query.timeOfDay ? Number(req.query.timeOfDay) : 15.5;
       const matchId = req.query.matchId ? Number(req.query.matchId) : 1;
 
-      const staticSeats = await getStaticStadiumSeats();
+      let staticSeats;
+      if (isDatabaseConfigured()) {
+        try {
+          staticSeats = await getStaticStadiumSeats();
+        } catch {
+          staticSeats = buildDeterministicStaticStadiumBundle(DEFAULT_STADIUM_SPEC).seats;
+        }
+      } else {
+        staticSeats = buildDeterministicStaticStadiumBundle(DEFAULT_STADIUM_SPEC).seats;
+      }
+
       const seat = staticSeats.find((s) => s.id === seatId);
       if (!seat) {
         return res.status(404).json({ error: 'Seat not found' });
       }
 
-      if (matchId) {
+      if (matchId && isDatabaseConfigured()) {
         await incrementSeatViewCount(matchId, seatId);
       }
 
@@ -251,21 +303,39 @@ async function startServer() {
 
   // Matches & Inventory
   app.get('/api/matches', async (_req, res) => {
+    if (!isDatabaseConfigured()) {
+      return res.json({
+        matches: buildDeterministicStaticStadiumBundle(DEFAULT_STADIUM_SPEC).defaultMatches,
+      });
+    }
     try {
       const list = await listMatchesWithStats();
       res.json({ matches: list });
-    } catch (error: any) {
-      res.status(500).json({ error: error.message || 'Failed to load matches' });
+    } catch {
+      res.json({
+        matches: buildDeterministicStaticStadiumBundle(DEFAULT_STADIUM_SPEC).defaultMatches,
+      });
     }
   });
 
   app.get('/api/matches/:matchId/inventory', async (req, res) => {
+    const matchId = Number(req.params.matchId);
+    if (!isDatabaseConfigured()) {
+      return res.json(
+        buildDeterministicStaticStadiumBundle(DEFAULT_STADIUM_SPEC).getMatchInventorySnapshot(
+          matchId
+        )
+      );
+    }
     try {
-      const matchId = Number(req.params.matchId);
       const snapshot = await getMatchInventorySnapshot(matchId);
       res.json(snapshot);
-    } catch (error: any) {
-      res.status(500).json({ error: error.message || 'Failed to load match inventory' });
+    } catch {
+      res.json(
+        buildDeterministicStaticStadiumBundle(DEFAULT_STADIUM_SPEC).getMatchInventorySnapshot(
+          matchId
+        )
+      );
     }
   });
 
@@ -296,10 +366,28 @@ async function startServer() {
         return res.status(400).json({ error: 'Invalid recommendation preferences' });
       }
 
-      const [staticSeats, snapshot] = await Promise.all([
-        getStaticStadiumSeats(),
-        getMatchInventorySnapshot(matchId),
-      ]);
+      let staticSeats;
+      let snapshot: {
+        inventory: Array<{ seatId: number; status: string; holdExpiresAt?: Date | string | null }>;
+        pricing: Array<{ categoryId: number; finalPricePaise: number }>;
+      };
+
+      if (isDatabaseConfigured()) {
+        try {
+          [staticSeats, snapshot] = await Promise.all([
+            getStaticStadiumSeats(),
+            getMatchInventorySnapshot(matchId),
+          ]);
+        } catch {
+          const fallback = buildDeterministicStaticStadiumBundle(DEFAULT_STADIUM_SPEC);
+          staticSeats = fallback.seats;
+          snapshot = fallback.getMatchInventorySnapshot(matchId);
+        }
+      } else {
+        const fallback = buildDeterministicStaticStadiumBundle(DEFAULT_STADIUM_SPEC);
+        staticSeats = fallback.seats;
+        snapshot = fallback.getMatchInventorySnapshot(matchId);
+      }
 
       const nowMs = Date.now();
       const statusBySeatId = new Map<number, SeatWithInventory['status']>(
@@ -1029,7 +1117,7 @@ async function startServer() {
     });
   }
 
-  const PORT = 3000;
+  const PORT = Number(process.env.PORT) || 3000;
   httpServer.listen(PORT, '0.0.0.0', () => {
     console.log(`STADIUMX Full-Stack Server & Socket.IO listening on http://0.0.0.0:${PORT}`);
   });

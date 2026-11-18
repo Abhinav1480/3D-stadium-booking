@@ -34,6 +34,12 @@ const HERO_POOL_MAX = 96;
 let canvasMountCounter = 0;
 let canvasDisposeCounter = 0;
 
+function resolvePublicAssetUrl(assetPath: string): string {
+  const base = (import.meta.env?.BASE_URL ?? '/').replace(/\/+$/, '');
+  const cleanPath = assetPath.replace(/^\/+/, '');
+  return base ? `${base}/${cleanPath}` : `/${cleanPath}`;
+}
+
 // Detect Software WebGL (SwiftShader / llvmpipe) once from GPU renderer string
 export const isSoftwareGl = (() => {
   if (typeof document === 'undefined') return false;
@@ -2039,11 +2045,11 @@ export const StadiumCanvas3D: React.FC = () => {
       return t;
     };
 
-    const grassMacroTex = loadTex('/textures/macro/grass_turf_macro.jpg', true, grassNeutralLuma);
-    const clayMacroTex = loadTex('/textures/macro/cricket_pitch_clay_macro.jpg', true, clayNeutralLuma);
-    const concreteMacroTex = loadTex('/textures/macro/concrete_step_macro.jpg', true, concreteNeutralLuma);
-    const seatAtlasNormal = !isSoftwareGl ? loadTex('/textures/seat_atlas_2k/seat_atlas_normal_2k.png', false) : null;
-    const seatAtlasAo = !isSoftwareGl ? loadTex('/textures/seat_atlas_2k/seat_atlas_ao_2k.png', false) : null;
+    const grassMacroTex = loadTex(resolvePublicAssetUrl('/textures/macro/grass_turf_macro.jpg'), true, grassNeutralLuma);
+    const clayMacroTex = loadTex(resolvePublicAssetUrl('/textures/macro/cricket_pitch_clay_macro.jpg'), true, clayNeutralLuma);
+    const concreteMacroTex = loadTex(resolvePublicAssetUrl('/textures/macro/concrete_step_macro.jpg'), true, concreteNeutralLuma);
+    const seatAtlasNormal = !isSoftwareGl ? loadTex(resolvePublicAssetUrl('/textures/seat_atlas_2k/seat_atlas_normal_2k.png'), false) : null;
+    const seatAtlasAo = !isSoftwareGl ? loadTex(resolvePublicAssetUrl('/textures/seat_atlas_2k/seat_atlas_ao_2k.png'), false) : null;
     const cityWindowTexs = createCityWindowTextures(effectiveInitialAniso);
     const floodBeamAlphaTex = createFloodBeamAlphaTexture();
 
@@ -2289,7 +2295,7 @@ export const StadiumCanvas3D: React.FC = () => {
 
     // 5A. Stadium Architecture & Outfield GLB
     gltfLoader.load(
-      '/models/stadium_venue.glb',
+      resolvePublicAssetUrl('/models/stadium_venue.glb'),
       (gltf) => {
         if (disposed) return;
         const venueRoot = gltf.scene;
@@ -2550,84 +2556,61 @@ export const StadiumCanvas3D: React.FC = () => {
       requestRender();
     };
 
-    gltfLoader.load('/models/seat_lod3.glb', (gltf) => {
-      if (disposed) return;
-      const geos: THREE.BufferGeometry[] = [];
-      gltf.scene.traverse((ch) => {
-        if ((ch as THREE.Mesh).isMesh) {
-          const g = (ch as THREE.Mesh).geometry.clone();
-          ch.updateWorldMatrix(true, false);
-          g.applyMatrix4(ch.matrixWorld);
-          geos.push(g);
-        }
-      });
-      if (geos.length > 0) {
-        const merged = BufferGeometryUtils.mergeGeometries(geos, false);
-        merged.computeVertexNormals();
-        lodGeosRef.current.lod3Shell = merged;
-        applyLoadedGeoToChunks();
-      }
-    });
-
-    gltfLoader.load('/models/seat_lod2.glb', (gltf) => {
-      if (disposed) return;
-      const geos: THREE.BufferGeometry[] = [];
-      gltf.scene.traverse((ch) => {
-        if ((ch as THREE.Mesh).isMesh) {
-          const g = (ch as THREE.Mesh).geometry.clone();
-          ch.updateWorldMatrix(true, false);
-          g.applyMatrix4(ch.matrixWorld);
-          geos.push(g);
-        }
-      });
-      if (geos.length > 0) {
-        const merged = BufferGeometryUtils.mergeGeometries(geos, false);
-        merged.computeVertexNormals();
-        lodGeosRef.current.lod2Shell = merged;
-        applyLoadedGeoToChunks();
-      }
-    });
-
-    gltfLoader.load('/models/seat_lod1.glb', (gltf) => {
-      if (disposed) return;
-      const sh: THREE.BufferGeometry[] = [];
-      const fr: THREE.BufferGeometry[] = [];
-      const hw: THREE.BufferGeometry[] = [];
-      gltf.scene.traverse((ch) => {
-        if ((ch as THREE.Mesh).isMesh) {
-          const m = ch as THREE.Mesh;
-          const g = m.geometry.clone();
-          m.updateWorldMatrix(true, false);
-          g.applyMatrix4(m.matrixWorld);
-          if (g.attributes.uv && !g.attributes.uv2) {
-            g.setAttribute('uv2', g.attributes.uv);
+    gltfLoader.load(
+      resolvePublicAssetUrl('/models/seat_lod3.glb'),
+      (gltf) => {
+        if (disposed) return;
+        const geos: THREE.BufferGeometry[] = [];
+        gltf.scene.traverse((ch) => {
+          if ((ch as THREE.Mesh).isMesh) {
+            const g = (ch as THREE.Mesh).geometry.clone();
+            ch.updateWorldMatrix(true, false);
+            g.applyMatrix4(ch.matrixWorld);
+            geos.push(g);
           }
-          if (m.name.includes('Hardware')) hw.push(g);
-          else if (m.name.includes('Frame')) fr.push(g);
-          else sh.push(g);
+        });
+        if (geos.length > 0) {
+          const merged = BufferGeometryUtils.mergeGeometries(geos, false);
+          merged.computeVertexNormals();
+          lodGeosRef.current.lod3Shell = merged;
+          applyLoadedGeoToChunks();
         }
-      });
-      if (sh.length) {
-        const m = BufferGeometryUtils.mergeGeometries(sh, false);
-        m.computeVertexNormals();
-        lodGeosRef.current.lod1Shell = m;
+      },
+      undefined,
+      (err) => {
+        console.error('Error loading /models/seat_lod3.glb:', err);
       }
-      if (fr.length) {
-        const m = BufferGeometryUtils.mergeGeometries(fr, false);
-        m.computeVertexNormals();
-        lodGeosRef.current.lod1Frame = m;
-      }
-      if (hw.length) {
-        const m = BufferGeometryUtils.mergeGeometries(hw, false);
-        m.computeVertexNormals();
-        lodGeosRef.current.lod1Hw = m;
-      }
-      applyLoadedGeoToChunks();
-    });
+    );
 
-    if (!isSoftwareGl) {
+    gltfLoader.load(
+      resolvePublicAssetUrl('/models/seat_lod2.glb'),
+      (gltf) => {
+        if (disposed) return;
+        const geos: THREE.BufferGeometry[] = [];
+        gltf.scene.traverse((ch) => {
+          if ((ch as THREE.Mesh).isMesh) {
+            const g = (ch as THREE.Mesh).geometry.clone();
+            ch.updateWorldMatrix(true, false);
+            g.applyMatrix4(ch.matrixWorld);
+            geos.push(g);
+          }
+        });
+        if (geos.length > 0) {
+          const merged = BufferGeometryUtils.mergeGeometries(geos, false);
+          merged.computeVertexNormals();
+          lodGeosRef.current.lod2Shell = merged;
+          applyLoadedGeoToChunks();
+        }
+      },
+      undefined,
+      (err) => {
+        console.error('Error loading /models/seat_lod2.glb:', err);
+      }
+    );
 
-      gltfLoader.load('/models/seat_high_detail.glb', (gltf) => {
+    gltfLoader.load(
+      resolvePublicAssetUrl('/models/seat_lod1.glb'),
+      (gltf) => {
         if (disposed) return;
         const sh: THREE.BufferGeometry[] = [];
         const fr: THREE.BufferGeometry[] = [];
@@ -2646,33 +2629,84 @@ export const StadiumCanvas3D: React.FC = () => {
             else sh.push(g);
           }
         });
-        if (sh.length && heroShellMeshRef.current && heroStatusAttrRef.current) {
+        if (sh.length) {
           const m = BufferGeometryUtils.mergeGeometries(sh, false);
           m.computeVertexNormals();
-          lodGeosRef.current.lod0Shell = m;
-          heroShellMeshRef.current.geometry = makeChunkWrappedGeo(m, heroStatusAttrRef.current);
+          lodGeosRef.current.lod1Shell = m;
         }
-        if (fr.length && heroFrameMeshRef.current) {
+        if (fr.length) {
           const m = BufferGeometryUtils.mergeGeometries(fr, false);
           m.computeVertexNormals();
-          lodGeosRef.current.lod0Frame = m;
-          heroFrameMeshRef.current.geometry.dispose();
-          heroFrameMeshRef.current.geometry = m;
+          lodGeosRef.current.lod1Frame = m;
         }
-        if (hw.length && heroHwMeshRef.current) {
+        if (hw.length) {
           const m = BufferGeometryUtils.mergeGeometries(hw, false);
           m.computeVertexNormals();
-          lodGeosRef.current.lod0Hw = m;
-          heroHwMeshRef.current.geometry.dispose();
-          heroHwMeshRef.current.geometry = m;
+          lodGeosRef.current.lod1Hw = m;
         }
-        requestRender();
-      });
+        applyLoadedGeoToChunks();
+      },
+      undefined,
+      (err) => {
+        console.error('Error loading /models/seat_lod1.glb:', err);
+      }
+    );
+
+    if (!isSoftwareGl) {
+
+      gltfLoader.load(
+        resolvePublicAssetUrl('/models/seat_high_detail.glb'),
+        (gltf) => {
+          if (disposed) return;
+          const sh: THREE.BufferGeometry[] = [];
+          const fr: THREE.BufferGeometry[] = [];
+          const hw: THREE.BufferGeometry[] = [];
+          gltf.scene.traverse((ch) => {
+            if ((ch as THREE.Mesh).isMesh) {
+              const m = ch as THREE.Mesh;
+              const g = m.geometry.clone();
+              m.updateWorldMatrix(true, false);
+              g.applyMatrix4(m.matrixWorld);
+              if (g.attributes.uv && !g.attributes.uv2) {
+                g.setAttribute('uv2', g.attributes.uv);
+              }
+              if (m.name.includes('Hardware')) hw.push(g);
+              else if (m.name.includes('Frame')) fr.push(g);
+              else sh.push(g);
+            }
+          });
+          if (sh.length && heroShellMeshRef.current && heroStatusAttrRef.current) {
+            const m = BufferGeometryUtils.mergeGeometries(sh, false);
+            m.computeVertexNormals();
+            lodGeosRef.current.lod0Shell = m;
+            heroShellMeshRef.current.geometry = makeChunkWrappedGeo(m, heroStatusAttrRef.current);
+          }
+          if (fr.length && heroFrameMeshRef.current) {
+            const m = BufferGeometryUtils.mergeGeometries(fr, false);
+            m.computeVertexNormals();
+            lodGeosRef.current.lod0Frame = m;
+            heroFrameMeshRef.current.geometry.dispose();
+            heroFrameMeshRef.current.geometry = m;
+          }
+          if (hw.length && heroHwMeshRef.current) {
+            const m = BufferGeometryUtils.mergeGeometries(hw, false);
+            m.computeVertexNormals();
+            lodGeosRef.current.lod0Hw = m;
+            heroHwMeshRef.current.geometry.dispose();
+            heroHwMeshRef.current.geometry = m;
+          }
+          requestRender();
+        },
+        undefined,
+        (err) => {
+          console.error('Error loading /models/seat_high_detail.glb:', err);
+        }
+      );
     }
 
     // 5C. Proportioned Seated Spectator GLB
     gltfLoader.load(
-      '/models/spectator_crowd.glb',
+      resolvePublicAssetUrl('/models/spectator_crowd.glb'),
       (gltf) => {
         if (disposed) return;
         gltf.scene.traverse((child) => {
@@ -3663,7 +3697,11 @@ export const StadiumCanvas3D: React.FC = () => {
           soundEngine.playChime('select');
           // Non-blocking backend inventory revalidation
           fetch(`/api/matches/${st.activeMatchId}/inventory`)
-            .then((r) => (r.ok ? r.json() : null))
+            .then((r) =>
+              r.ok && (r.headers.get('content-type') || '').toLowerCase().includes('application/json')
+                ? r.json()
+                : null
+            )
             .then((invJson) => {
               if (!invJson?.inventory || !invJson?.pricing) return;
               const live = useStadiumStore.getState();

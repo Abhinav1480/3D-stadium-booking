@@ -7,8 +7,10 @@ import {
   type StandSpec,
 } from './stadiumSpec';
 
-export type SeatLodTier = 'LOD0' | 'LOD1' | 'LOD2' | 'LOD3';
+export type SeatLodTier = 'LOD0' | 'LOD1' | 'LOD2' | 'LOD3' | 'ROW_STRIP';
 export type SpatialQualityPreset = 'LOW' | 'MEDIUM' | 'HIGH' | 'ULTRA';
+export const ROW_STRIP_DISTANCE_M = 150;
+export const LOD_HYSTERESIS_RATIO = 0.1;
 
 export interface QualityPresetConfig {
   preset: SpatialQualityPreset;
@@ -128,7 +130,7 @@ export const QUALITY_PRESET_CONFIGS: Record<SpatialQualityPreset, QualityPresetC
     seatsReceiveShadow: true,
     useSimpleSeatMaterial: false,
     useHeroLod0Pool: true,
-    heroPoolMax: 96,
+    heroPoolMax: 128,
     maxCrowd: 3200,
     crowdStride: 4,
     maxAnisotropyCap: 16,
@@ -140,7 +142,7 @@ export const QUALITY_PRESET_CONFIGS: Record<SpatialQualityPreset, QualityPresetC
     macroDetailEnabled: true,
     fillLightEnabled: true,
     lod1SurfaceDist: 38,
-    lod2SurfaceDist: 120,
+    lod2SurfaceDist: 112,
   },
 };
 
@@ -364,27 +366,100 @@ export function selectChunkLod(
   qualityPreset: SpatialQualityPreset,
   isSoftwareGl: boolean
 ): SeatLodTier {
+  return selectChunkLodWithHysteresis(
+    camX,
+    camY,
+    camZ,
+    sphere,
+    null,
+    qualityPreset,
+    isSoftwareGl
+  );
+}
+
+/**
+ * Selects geometry LOD with 10% distance hysteresis to prevent threshold flickering,
+ * switching chunks beyond 150 m to ultra-lightweight ROW_STRIP slabs.
+ */
+export function selectChunkLodWithHysteresis(
+  camX: number,
+  camY: number,
+  camZ: number,
+  sphere: BoundingSphereData,
+  prevLod: SeatLodTier | null,
+  qualityPreset: SpatialQualityPreset,
+  isSoftwareGl: boolean
+): SeatLodTier {
   const distToCenter = Math.hypot(
     camX - sphere.centerX,
     camY - sphere.centerY,
     camZ - sphere.centerZ
   );
   const surfaceDist = Math.max(0, distToCenter - sphere.radius);
+  const stripThresh = ROW_STRIP_DISTANCE_M;
+
+  if (prevLod === 'ROW_STRIP') {
+    if (surfaceDist >= stripThresh * (1 - LOD_HYSTERESIS_RATIO)) {
+      return 'ROW_STRIP';
+    }
+  } else if (surfaceDist >= stripThresh * (prevLod ? 1 + LOD_HYSTERESIS_RATIO : 1.0)) {
+    return 'ROW_STRIP';
+  }
 
   if (isSoftwareGl) {
     if (qualityPreset === 'LOW') {
       return 'LOD3';
     }
-    if ((qualityPreset === 'HIGH' || qualityPreset === 'ULTRA') && surfaceDist < 7.0) {
-      return 'LOD1';
-    }
-    return surfaceDist < 28 ? 'LOD2' : 'LOD3';
+    const swLod2 = 28.0;
+    const lod2Gate =
+      prevLod === 'LOD2'
+        ? swLod2 * (1 + LOD_HYSTERESIS_RATIO)
+        : prevLod === 'LOD3'
+        ? swLod2 * (1 - LOD_HYSTERESIS_RATIO)
+        : swLod2;
+    return surfaceDist < lod2Gate ? 'LOD2' : 'LOD3';
   }
 
   const cfg = QUALITY_PRESET_CONFIGS[qualityPreset];
-  if (cfg.lod1SurfaceDist > 0 && surfaceDist < cfg.lod1SurfaceDist) return 'LOD1';
-  if (surfaceDist < cfg.lod2SurfaceDist) return 'LOD2';
+  if (cfg.lod1SurfaceDist > 0) {
+    const lod1Gate =
+      prevLod === 'LOD1'
+        ? cfg.lod1SurfaceDist * (1 + LOD_HYSTERESIS_RATIO)
+        : prevLod === 'LOD2'
+        ? cfg.lod1SurfaceDist * (1 - LOD_HYSTERESIS_RATIO)
+        : cfg.lod1SurfaceDist;
+    if (surfaceDist < lod1Gate) return 'LOD1';
+  }
+
+  const lod2Gate =
+    prevLod === 'LOD2'
+      ? cfg.lod2SurfaceDist * (1 + LOD_HYSTERESIS_RATIO)
+      : prevLod === 'LOD3'
+      ? cfg.lod2SurfaceDist * (1 - LOD_HYSTERESIS_RATIO)
+      : cfg.lod2SurfaceDist;
+  if (surfaceDist < lod2Gate) return 'LOD2';
   return 'LOD3';
+}
+
+/**
+ * Fast angular / half-space occlusion check for seating bowl chunks strictly behind the camera
+ * (avoids drawing unseen opposite/behind-viewer tier chunks while preserving wide-FOV peripheral chunks).
+ */
+export function isChunkBehindCamera(
+  camX: number,
+  camY: number,
+  camZ: number,
+  lookDirX: number,
+  lookDirY: number,
+  lookDirZ: number,
+  sphere: BoundingSphereData
+): boolean {
+  const vx = sphere.centerX - camX;
+  const vy = sphere.centerY - camY;
+  const vz = sphere.centerZ - camZ;
+  const forwardProj = vx * lookDirX + vy * lookDirY + vz * lookDirZ;
+  // Keep any chunk whose sphere extends even 4 m in front of the camera plane
+  return forwardProj + sphere.radius < -4.0;
 }
 
 export type EffectiveSeatStatus =
@@ -721,7 +796,7 @@ export function clampStadiumCameraPosition(
   targetYHint?: number,
   spec: StadiumSpec = DEFAULT_STADIUM_SPEC
 ): [number, number, number] {
-  const maxR = 235;
+  const maxR = 460;
   const rHoriz = Math.hypot(x, z);
   let cx = x;
   let cz = z;
@@ -733,7 +808,7 @@ export function clampStadiumCameraPosition(
 
   const floorY = estimateStadiumSurfaceY(cx, cz, spec);
   const minClearY = floorY + 1.45;
-  let cy = Math.max(minClearY, Math.min(165, y));
+  let cy = Math.max(minClearY, Math.min(280, y));
 
   // Prevent camera from getting trapped inside the cantilevered PTFE roof canopy slab
   const inRoofInner = Math.hypot(cx / spec.roofInnerRadiusX, cz / spec.roofInnerRadiusZ);

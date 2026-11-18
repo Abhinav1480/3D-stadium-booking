@@ -17,7 +17,7 @@ export const users = pgTable('users', {
   email: text('email').notNull().unique(),
   passwordHash: text('password_hash').notNull().default(''),
   name: text('name').notNull().default('Cricket Fan'),
-  role: text('role').notNull().default('USER'), // 'USER' | 'ADMIN' | 'GATE_STAFF'
+  role: text('role').notNull().default('USER'), // Customer account role ('USER')
   createdAt: timestamp('created_at').defaultNow().notNull(),
 });
 

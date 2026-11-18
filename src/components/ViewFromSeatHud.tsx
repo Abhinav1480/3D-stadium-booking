@@ -7,8 +7,10 @@ import {
 } from '../shared/stadiumSpec';
 import { resolveSeatAvailabilityStatus } from '../shared/seatingSpatial';
 import { soundEngine } from '../utils/soundEngine';
+import { recordReactRender } from '../utils/perfProfiler';
 
-export const ViewFromSeatHud: React.FC = () => {
+export const ViewFromSeatHud: React.FC = React.memo(() => {
+  recordReactRender('ViewFromSeatHud');
   const focusedSeat = useStadiumStore((s) => s.focusedSeat);
   const cameraMode = useStadiumStore((s) => s.cameraMode);
   const isInspectorCollapsed = useStadiumStore((s) => s.isInspectorCollapsed);
@@ -93,7 +95,11 @@ export const ViewFromSeatHud: React.FC = () => {
     <>
       {/* First-Person Seat View Exit Bar (Always Accessible Even When Inspector Is Hidden) */}
       {cameraMode === 'SEAT_VIEW' && (
-        <div className="fixed top-[4.25rem] left-1/2 -translate-x-1/2 z-30 flex items-center gap-2.5 rounded-xl bg-[#0F172A]/95 border border-emerald-500/40 px-3 py-1.5 text-xs text-slate-100 shadow-2xl">
+        <div
+          className={`fixed top-[4.25rem] left-1/2 -translate-x-1/2 z-30 ${
+            !isInspectorCollapsed ? 'hidden sm:flex' : 'flex'
+          } items-center gap-2.5 rounded-xl bg-[#0F172A]/95 border border-emerald-500/40 px-3 py-1.5 text-xs text-slate-100 shadow-2xl`}
+        >
           <span className="font-mono font-bold text-emerald-400 whitespace-nowrap">
             {focusedSeat.seatCode}
           </span>
@@ -146,8 +152,9 @@ export const ViewFromSeatHud: React.FC = () => {
             : 'translate-x-0 opacity-100 pointer-events-auto'
         }`}
       >
-        {/* Fixed Inspector Header */}
-        <div className="shrink-0">
+        {/* Fixed / Non-Shrinking Top Section: Header + Head Pan (Yaw) + Eye Zoom (FOV) + Divider */}
+        <div className="shrink-0 border-b border-white/15 pb-2.5">
+          {/* 1. Seat Sightline Inspector Header */}
           <div className="flex items-center justify-between gap-2 border-b border-white/10 pb-1.5 mb-1.5">
             <span className="text-[11px] font-medium text-emerald-400">
               {cameraMode === 'SEAT_VIEW'
@@ -168,7 +175,7 @@ export const ViewFromSeatHud: React.FC = () => {
             </button>
           </div>
 
-          <div className="flex items-start justify-between gap-2 border-b border-white/10 pb-2">
+          <div className="flex items-start justify-between gap-2 border-b border-white/10 pb-2 mb-2.5">
             <div className="min-w-0">
               <div className="flex items-center gap-2 flex-wrap">
                 <h2 className="font-mono text-base font-bold text-white">
@@ -206,58 +213,110 @@ export const ViewFromSeatHud: React.FC = () => {
             </div>
           </div>
 
-          {/* Pinned Side-by-Side Primary Top Action Row (Headphone Audio + 3D Eye View) */}
-          <div
-            data-testid="inspector-pinned-actions"
-            className="grid grid-cols-2 gap-2 py-2.5 border-b border-white/10"
-          >
-            <button
-              type="button"
-              data-testid="inspector-headphone-action"
-              aria-pressed={crowdAudioEnabled}
-              aria-label={crowdAudioEnabled ? 'Mute Stadium Acoustics' : 'Listen to Stadium Acoustics'}
-              onClick={() => {
-                const next = !crowdAudioEnabled;
-                setCrowdAudioEnabled(next);
-                soundEngine.toggleCrowdMurmur(next);
-              }}
-              className={`flex items-center justify-center gap-1.5 py-2 px-2.5 rounded-lg border text-[11px] font-semibold transition-colors whitespace-nowrap ${
-                crowdAudioEnabled
-                  ? 'bg-emerald-600/25 border-emerald-400/70 text-emerald-200 hover:bg-emerald-600/35'
-                  : 'bg-[#0B0F17] hover:bg-slate-800 border-white/15 text-slate-200 hover:text-white'
-              }`}
-            >
-              <Headphones className="w-3.5 h-3.5 shrink-0 text-emerald-400" />
-              <span>{crowdAudioEnabled ? 'Audio: On' : 'Stadium Audio'}</span>
-            </button>
+          {/* 2. Head Pan (Yaw) & 3. Eye Zoom (FOV) Always-Visible Top Controls */}
+          <div data-testid="inspector-pinned-camera-controls" className="space-y-2">
+            {/* 2. Head Pan (Yaw) Control */}
+            <div data-testid="inspector-head-pan-control" className="space-y-1">
+              <div className="flex items-center justify-between text-[11px] text-slate-300">
+                <span className="font-medium text-slate-200">
+                  Head Pan (Yaw): {Number(seatViewYawOffsetDeg.toFixed(1))}°
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (cameraMode !== 'SEAT_VIEW') {
+                      enterSeatView(focusedSeat, telemetry);
+                    }
+                    setSeatViewLook(0, 0, 64);
+                  }}
+                  className="text-emerald-400 hover:underline"
+                >
+                  Center on Pitch
+                </button>
+              </div>
+              <input
+                type="range"
+                aria-label="Head Pan Yaw Angle"
+                min={-80}
+                max={80}
+                value={seatViewYawOffsetDeg}
+                onChange={(e) => {
+                  const nextYaw = Number(e.target.value);
+                  if (cameraMode !== 'SEAT_VIEW') {
+                    enterSeatView(focusedSeat, telemetry);
+                  }
+                  setSeatViewLook(nextYaw, seatViewPitchOffsetDeg);
+                }}
+                className="w-full accent-emerald-500 h-1.5 bg-slate-800 rounded cursor-pointer"
+              />
+            </div>
 
-            {cameraMode !== 'SEAT_VIEW' ? (
-              <button
-                type="button"
-                data-testid="inspector-eye-action"
-                aria-label="View From Here (3D Eye)"
-                onClick={() => enterSeatView(focusedSeat, telemetry)}
-                className="flex items-center justify-center gap-1.5 py-2 px-2.5 rounded-lg bg-sky-600 hover:bg-sky-500 text-white text-[11px] font-semibold transition-colors whitespace-nowrap shadow-sm"
-              >
-                <Eye className="w-3.5 h-3.5 shrink-0" />
-                <span>View From Here</span>
-              </button>
-            ) : (
-              <button
-                type="button"
-                data-testid="inspector-eye-action"
-                aria-label="Exit Seat View"
-                onClick={() => exitSeatView()}
-                className="flex items-center justify-center gap-1.5 py-2 px-2.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-sky-500/40 text-sky-200 hover:text-white text-[11px] font-semibold transition-colors whitespace-nowrap"
-              >
-                <Eye className="w-3.5 h-3.5 shrink-0 text-sky-400" />
-                <span>Exit Seat View</span>
-              </button>
-            )}
+            {/* 3. Eye Zoom (FOV) Control */}
+            <div data-testid="inspector-eye-zoom-control" className="space-y-1">
+              <div className="flex items-center justify-between text-[11px] text-slate-300">
+                <span className="font-medium text-slate-200">
+                  Eye Zoom (FOV): {Math.round(seatViewFov)}°
+                </span>
+                <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => setTimeOfDayHours(14.0)}
+                    className={`px-1.5 py-0.5 rounded text-[10px] ${
+                      timeOfDayHours < 16.8
+                        ? 'bg-emerald-600 text-white'
+                        : 'bg-slate-800 text-slate-300'
+                    }`}
+                  >
+                    Day
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setTimeOfDayHours(17.75)}
+                    className={`px-1.5 py-0.5 rounded text-[10px] ${
+                      timeOfDayHours >= 16.8 && timeOfDayHours < 18.5
+                        ? 'bg-amber-600 text-white'
+                        : 'bg-slate-800 text-slate-300'
+                    }`}
+                  >
+                    Dusk
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setTimeOfDayHours(20.5)}
+                    className={`px-1.5 py-0.5 rounded text-[10px] ${
+                      timeOfDayHours >= 18.5
+                        ? 'bg-indigo-600 text-white'
+                        : 'bg-slate-800 text-slate-300'
+                    }`}
+                  >
+                    Night
+                  </button>
+                </div>
+              </div>
+              <input
+                type="range"
+                aria-label="Field of View Zoom"
+                min={30}
+                max={72}
+                value={seatViewFov}
+                onChange={(e) => {
+                  const nextFov = Number(e.target.value);
+                  if (cameraMode !== 'SEAT_VIEW') {
+                    enterSeatView(focusedSeat, telemetry);
+                  }
+                  setSeatViewLook(
+                    seatViewYawOffsetDeg,
+                    seatViewPitchOffsetDeg,
+                    nextFov
+                  );
+                }}
+                className="w-full accent-sky-500 h-1.5 bg-slate-800 rounded cursor-pointer"
+              />
+            </div>
           </div>
         </div>
 
-        {/* Independently Scrollable Lower Content Area */}
+        {/* 4. Divider above + 5. Independently Scrollable Lower Content Area */}
         <div
           data-testid="inspector-scroll-body"
           className="flex-1 min-h-0 overflow-y-auto pt-2.5 pr-0.5 space-y-2.5"
@@ -303,86 +362,52 @@ export const ViewFromSeatHud: React.FC = () => {
             </div>
           )}
 
-          {/* First-Person 360 Look & FOV Controls when inside SEAT_VIEW */}
-          {cameraMode === 'SEAT_VIEW' && (
-            <div className="border-t border-white/10 pt-2.5 space-y-2">
-              <div className="flex items-center justify-between text-[11px] text-slate-300">
-                <span>Head Pan (Yaw): {seatViewYawOffsetDeg}°</span>
-                <button
-                  type="button"
-                  onClick={() => setSeatViewLook(0, 0, 64)}
-                  className="text-emerald-400 hover:underline"
-                >
-                  Center on Pitch
-                </button>
-              </div>
-              <input
-                type="range"
-                aria-label="Head Pan Yaw Angle"
-                min={-80}
-                max={80}
-                value={seatViewYawOffsetDeg}
-                onChange={(e) =>
-                  setSeatViewLook(Number(e.target.value), seatViewPitchOffsetDeg)
-                }
-                className="w-full accent-emerald-500 h-1.5 bg-slate-800 rounded"
-              />
+          {/* Audio & Seat Camera Toggle Actions */}
+          <div className="grid grid-cols-2 gap-2 pt-2.5 border-t border-white/10">
+            <button
+              type="button"
+              data-testid="inspector-headphone-action"
+              aria-pressed={crowdAudioEnabled}
+              aria-label={crowdAudioEnabled ? 'Mute Stadium Acoustics' : 'Listen to Stadium Acoustics'}
+              onClick={() => {
+                const next = !crowdAudioEnabled;
+                setCrowdAudioEnabled(next);
+                soundEngine.toggleCrowdMurmur(next);
+              }}
+              className={`flex items-center justify-center gap-1.5 py-2 px-2.5 rounded-lg border text-[11px] font-semibold transition-colors whitespace-nowrap ${
+                crowdAudioEnabled
+                  ? 'bg-emerald-600/25 border-emerald-400/70 text-emerald-200 hover:bg-emerald-600/35'
+                  : 'bg-[#0B0F17] hover:bg-slate-800 border-white/15 text-slate-200 hover:text-white'
+              }`}
+            >
+              <Headphones className="w-3.5 h-3.5 shrink-0 text-emerald-400" />
+              <span>{crowdAudioEnabled ? 'Audio: On' : 'Stadium Audio'}</span>
+            </button>
 
-              <div className="flex items-center justify-between text-[11px] text-slate-300">
-                <span>Eye Zoom (FOV): {seatViewFov}°</span>
-                <div className="flex items-center gap-1.5">
-                  <button
-                    type="button"
-                    onClick={() => setTimeOfDayHours(14.0)}
-                    className={`px-1.5 py-0.5 rounded text-[10px] ${
-                      timeOfDayHours < 16.8
-                        ? 'bg-emerald-600 text-white'
-                        : 'bg-slate-800 text-slate-300'
-                    }`}
-                  >
-                    Day
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setTimeOfDayHours(17.75)}
-                    className={`px-1.5 py-0.5 rounded text-[10px] ${
-                      timeOfDayHours >= 16.8 && timeOfDayHours < 18.5
-                        ? 'bg-amber-600 text-white'
-                        : 'bg-slate-800 text-slate-300'
-                    }`}
-                  >
-                    Dusk
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setTimeOfDayHours(20.5)}
-                    className={`px-1.5 py-0.5 rounded text-[10px] ${
-                      timeOfDayHours >= 18.5
-                        ? 'bg-indigo-600 text-white'
-                        : 'bg-slate-800 text-slate-300'
-                    }`}
-                  >
-                    Night
-                  </button>
-                </div>
-              </div>
-              <input
-                type="range"
-                aria-label="Field of View Zoom"
-                min={30}
-                max={72}
-                value={seatViewFov}
-                onChange={(e) =>
-                  setSeatViewLook(
-                    seatViewYawOffsetDeg,
-                    seatViewPitchOffsetDeg,
-                    Number(e.target.value)
-                  )
-                }
-                className="w-full accent-sky-500 h-1.5 bg-slate-800 rounded"
-              />
-            </div>
-          )}
+            {cameraMode !== 'SEAT_VIEW' ? (
+              <button
+                type="button"
+                data-testid="inspector-eye-action"
+                aria-label="View From Here (3D Eye)"
+                onClick={() => enterSeatView(focusedSeat, telemetry)}
+                className="flex items-center justify-center gap-1.5 py-2 px-2.5 rounded-lg bg-sky-600 hover:bg-sky-500 text-white text-[11px] font-semibold transition-colors whitespace-nowrap shadow-sm"
+              >
+                <Eye className="w-3.5 h-3.5 shrink-0" />
+                <span>View From Here</span>
+              </button>
+            ) : (
+              <button
+                type="button"
+                data-testid="inspector-eye-action"
+                aria-label="Exit Seat View"
+                onClick={() => exitSeatView()}
+                className="flex items-center justify-center gap-1.5 py-2 px-2.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-sky-500/40 text-sky-200 hover:text-white text-[11px] font-semibold transition-colors whitespace-nowrap"
+              >
+                <Eye className="w-3.5 h-3.5 shrink-0 text-sky-400" />
+                <span>Exit Seat View</span>
+              </button>
+            )}
+          </div>
 
           {/* Booking Selection & Secondary Actions */}
           <div className="pt-2.5 border-t border-white/10 flex flex-col gap-2">
@@ -489,4 +514,4 @@ export const ViewFromSeatHud: React.FC = () => {
       )}
     </>
   );
-};
+});

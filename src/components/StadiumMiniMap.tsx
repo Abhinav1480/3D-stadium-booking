@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { DEFAULT_STADIUM_SPEC } from '../shared/stadiumSpec';
 import { useStadiumStore } from '../store/useStadiumStore';
+import { recordReactRender } from '../utils/perfProfiler';
 
 /**
  * Compact interactive Top-Left Radar Mini-Map showing:
@@ -8,7 +9,8 @@ import { useStadiumStore } from '../store/useStadiumStore';
  * - Facility hotspots (Gates, Lounges, Food Courts, Medical, Scoreboards)
  * - Live camera position & look-cone updated imperatively at zero React re-render cost
  */
-export const StadiumMiniMap: React.FC = () => {
+export const StadiumMiniMap: React.FC = React.memo(() => {
+  recordReactRender('StadiumMiniMap');
   const activeStandCode = useStadiumStore((s) => s.activeStandCode);
   const focusStand = useStadiumStore((s) => s.focusStand);
   const comparisonCount = useStadiumStore((s) => s.comparisonSeats.length);
@@ -183,4 +185,4 @@ export const StadiumMiniMap: React.FC = () => {
       </div>
     </aside>
   );
-};
+});

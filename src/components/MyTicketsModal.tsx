@@ -7,6 +7,7 @@ import {
   FileDown,
   MapPin,
   Maximize2,
+  QrCode,
   Receipt,
   Share2,
   Ticket,
@@ -214,14 +215,24 @@ export const MyTicketsModal: React.FC<{
             </div>
           </div>
 
-          <button
-            type="button"
-            onClick={() => setActiveModal('NONE')}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-white/10 text-xs font-medium text-slate-200 transition-colors"
-          >
-            <X className="w-3.5 h-3.5" />
-            Close
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setActiveModal('MY_QR')}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600/20 hover:bg-emerald-600/30 border border-emerald-500/40 text-xs font-semibold text-emerald-300 transition-colors"
+            >
+              <QrCode className="w-3.5 h-3.5" />
+              My QR
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveModal('NONE')}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-white/10 text-xs font-medium text-slate-200 transition-colors"
+            >
+              <X className="w-3.5 h-3.5" />
+              Close
+            </button>
+          </div>
         </div>
 
         {/* Summary Metrics & Status Filter Tabs */}

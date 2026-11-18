@@ -6,6 +6,9 @@ declare global {
   var _postgresPool: Pool | undefined;
 }
 
+export const isDatabaseConfigured = (): boolean =>
+  Boolean(process.env.SQL_HOST && process.env.SQL_DB_NAME);
+
 export const createPool = () => {
   if (!global._postgresPool) {
     global._postgresPool = new Pool({
@@ -14,7 +17,7 @@ export const createPool = () => {
       password: process.env.SQL_PASSWORD,
       database: process.env.SQL_DB_NAME,
       max: 10,
-      connectionTimeoutMillis: 15000,
+      connectionTimeoutMillis: isDatabaseConfigured() ? 15000 : 2000,
     });
 
     global._postgresPool.on('error', (err) => {

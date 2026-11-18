@@ -59,15 +59,17 @@ test('buildSpatialSeatingIndex partitions all 33,600 seats cleanly across 24 chu
 test('selectChunkLod picks lean LOD2/LOD3 on software WebGL and full LOD1..3 progression on hardware GPU', () => {
   const northSphere = { centerX: 0, centerY: 10, centerZ: -89, radius: 22 };
 
-  // Software GL: close chunk uses LOD2, opposite chunk uses LOD3
+  // Software GL: close chunk uses LOD2, 137m chunk uses LOD3, >150m opposite chunk uses ROW_STRIP
   assert.equal(selectChunkLod(0, 12, -50, northSphere, 'HIGH', true), 'LOD2');
-  assert.equal(selectChunkLod(0, 12, 95, northSphere, 'HIGH', true), 'LOD3');
+  assert.equal(selectChunkLod(0, 12, 70, northSphere, 'HIGH', true), 'LOD3');
+  assert.equal(selectChunkLod(0, 12, 95, northSphere, 'HIGH', true), 'ROW_STRIP');
   assert.equal(selectChunkLod(0, 12, -50, northSphere, 'LOW', true), 'LOD3');
 
-  // Hardware GPU HIGH preset: near chunk uses LOD1, mid uses LOD2, far uses LOD3
+  // Hardware GPU HIGH preset: near chunk uses LOD1, mid uses LOD2, far (137m) uses LOD3, >150m uses ROW_STRIP
   assert.equal(selectChunkLod(0, 12, -45, northSphere, 'HIGH', false), 'LOD1');
   assert.equal(selectChunkLod(0, 12, 10, northSphere, 'HIGH', false), 'LOD2');
   assert.equal(selectChunkLod(0, 12, 70, northSphere, 'HIGH', false), 'LOD3');
+  assert.equal(selectChunkLod(0, 12, 95, northSphere, 'HIGH', false), 'ROW_STRIP');
 });
 
 test('computeStandFocusCamera and computeSeatViewCamera frame stands and pitch clearly', () => {

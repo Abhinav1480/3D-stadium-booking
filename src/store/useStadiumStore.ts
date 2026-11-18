@@ -127,8 +127,7 @@ export type ActiveWorkspaceModal =
   | 'SMART_FINDER'
   | 'CHECKOUT'
   | 'MY_TICKETS'
-  | 'ADMIN_OPS'
-  | 'GATE_QR'
+  | 'MY_QR'
   | 'BLENDER_CONTRACT';
 
 interface StadiumState {
@@ -138,7 +137,7 @@ interface StadiumState {
     uid: string;
     email: string;
     name: string;
-    role: 'USER' | 'ADMIN' | 'GATE_STAFF';
+    role: 'USER';
   };
   sessionToken: string | null;
 
@@ -180,6 +179,7 @@ interface StadiumState {
   introPlaying: boolean;
   timeOfDayHours: number; // 8.0 to 22.0 (14.0 = Day, 17.75 = Dusk, 20.5 = Night)
   qualityPreset: QualityPreset;
+  qualityPresetManual: boolean;
   is2DFallback: boolean;
   isHudCollapsed: boolean;
   isStadiumControlsOpen: boolean;
@@ -222,6 +222,15 @@ interface StadiumState {
     holdExpiresAt?: string | null;
     holdToken?: string | null;
   }) => void;
+  applySocketSeatBatch: (
+    payloads: Array<{
+      seatIds: number[];
+      status: 'AVAILABLE' | 'HELD' | 'BOOKED' | 'BLOCKED';
+      holdUserId?: number | null;
+      holdExpiresAt?: string | null;
+      holdToken?: string | null;
+    }>
+  ) => void;
 
   setHoveredSeat: (seat: StaticSeatRecord | null) => void;
   setFocusedSeat: (
@@ -320,6 +329,13 @@ export const useStadiumStore = create<StadiumState>((set, get) => ({
     }
     return 'HIGH';
   })(),
+  qualityPresetManual: (() => {
+    if (typeof window !== 'undefined') {
+      const saved = window.localStorage?.getItem('stadiumx_quality_preset');
+      return saved === 'LOW' || saved === 'MEDIUM' || saved === 'HIGH' || saved === 'ULTRA';
+    }
+    return false;
+  })(),
   is2DFallback: false,
   isHudCollapsed: true,
   isStadiumControlsOpen: false,
@@ -368,27 +384,40 @@ export const useStadiumStore = create<StadiumState>((set, get) => ({
     }));
   },
 
-  applySocketSeatUpdate: ({ seatIds, status, holdUserId, holdExpiresAt, holdToken }) => {
+  applySocketSeatUpdate: (payload) => get().applySocketSeatBatch([payload]),
+
+  applySocketSeatBatch: (payloads) => {
+    if (payloads.length === 0) return;
     set((s) => {
       const nextInv = { ...s.inventoryBySeatId };
-      for (const id of seatIds) {
-        nextInv[id] = {
-          seatId: id,
-          status,
-          holdUserId: holdUserId ?? null,
-          holdExpiresAt: holdExpiresAt ?? null,
-          holdToken: holdToken ?? null,
-        };
+      const touchedSeatIds: number[] = [];
+      let nextSelected = s.selectedSeatIds;
+      let clearedHold = s.activeHold;
+
+      for (const payload of payloads) {
+        const { seatIds, status, holdUserId, holdExpiresAt, holdToken } = payload;
+        for (const id of seatIds) {
+          touchedSeatIds.push(id);
+          nextInv[id] = {
+            seatId: id,
+            status,
+            holdUserId: holdUserId ?? null,
+            holdExpiresAt: holdExpiresAt ?? null,
+            holdToken: holdToken ?? null,
+          };
+        }
+        const isOurHold = s.activeHold && holdToken && s.activeHold.holdToken === holdToken;
+        if (status !== 'AVAILABLE' && !isOurHold) {
+          nextSelected = nextSelected.filter((id) => !seatIds.includes(id));
+        }
+        if (
+          clearedHold &&
+          status === 'AVAILABLE' &&
+          clearedHold.seats.some((hs) => seatIds.includes(hs.seatId))
+        ) {
+          clearedHold = null;
+        }
       }
-      const isOurHold = s.activeHold && holdToken && s.activeHold.holdToken === holdToken;
-      const nextSelected =
-        status !== 'AVAILABLE' && !isOurHold
-          ? s.selectedSeatIds.filter((id) => !seatIds.includes(id))
-          : s.selectedSeatIds;
-      const clearedHold =
-        s.activeHold && status === 'AVAILABLE' && s.activeHold.seats.some((hs) => seatIds.includes(hs.seatId))
-          ? null
-          : s.activeHold;
 
       return {
         inventoryBySeatId: nextInv,
@@ -396,7 +425,7 @@ export const useStadiumStore = create<StadiumState>((set, get) => ({
         activeHold: clearedHold,
         lastSocketDelta: {
           nonce: (s.lastSocketDelta?.nonce ?? 0) + 1,
-          seatIds,
+          seatIds: touchedSeatIds,
         },
       };
     });
@@ -617,7 +646,10 @@ export const useStadiumStore = create<StadiumState>((set, get) => ({
         window.localStorage?.setItem('stadiumx_quality_preset', preset);
       } catch {}
     }
-    set({ qualityPreset: preset });
+    set((s) => ({
+      qualityPreset: preset,
+      qualityPresetManual: persist ? true : s.qualityPresetManual,
+    }));
   },
   setIs2DFallback: (val) => set({ is2DFallback: val }),
   setIsHudCollapsed: (val) => set({ isHudCollapsed: val, isStadiumControlsOpen: !val }),

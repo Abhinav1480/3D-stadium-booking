@@ -14,9 +14,11 @@ import {
   X,
 } from 'lucide-react';
 import { useStadiumStore } from '../store/useStadiumStore';
-import type {
-  RecommendationSortBy,
-  SeatRecommendationGroup,
+import {
+  recommendSeats,
+  type RecommendationSortBy,
+  type SeatRecommendationGroup,
+  type SeatWithInventory,
 } from '../shared/stadiumSpec';
 
 const BUDGET_PRESETS = [
@@ -58,32 +60,55 @@ export const SmartFinderModal: React.FC = () => {
 
   const fetchRecommendations = useCallback(async () => {
     setLoading(true);
+    const prefs = {
+      budgetPerSeatPaise: budgetInr > 0 ? budgetInr * 100 : 0,
+      groupSize,
+      preferredStandCode,
+      preferredCategoryCode,
+      preferBestView,
+      preferShade,
+      preferStraightView,
+      preferCloseToPitch,
+      preferBestElevation,
+      preferNearEntrance,
+      preferFamilyZone,
+      requireAdjacentSeats,
+      sortBy,
+    };
+
+    const computeLocal = () => {
+      const storeNow = useStadiumStore.getState();
+      const invMap = storeNow.inventoryBySeatId;
+      const priceMap = storeNow.priceByCategoryId;
+      const enriched: SeatWithInventory[] = storeNow.seats.map((s) => ({
+        ...s,
+        standCode: s.standCode as any,
+        categoryCode: s.categoryCode as any,
+        status: invMap[s.id]?.status || 'AVAILABLE',
+        pricePaise: priceMap[s.categoryId] ?? 180000,
+      }));
+      setResults(recommendSeats(enriched, prefs, 8));
+    };
+
     try {
       const res = await fetch(`/api/matches/${activeMatchId}/recommendations`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          budgetPerSeatPaise: budgetInr > 0 ? budgetInr * 100 : 0,
-          groupSize,
-          preferredStandCode,
-          preferredCategoryCode,
-          preferBestView,
-          preferShade,
-          preferStraightView,
-          preferCloseToPitch,
-          preferBestElevation,
-          preferNearEntrance,
-          preferFamilyZone,
-          requireAdjacentSeats,
-          sortBy,
-        }),
+        body: JSON.stringify(prefs),
       });
+      const contentType = res.headers.get('content-type') || '';
+      if (!res.ok || !contentType.toLowerCase().includes('application/json')) {
+        computeLocal();
+        return;
+      }
       const data = await res.json();
       if (data.recommendations) {
         setResults(data.recommendations);
+      } else {
+        computeLocal();
       }
     } catch {
-      showToast('Failed to analyze stadium seating recommendations', 'error');
+      computeLocal();
     } finally {
       setLoading(false);
     }
@@ -102,7 +127,6 @@ export const SmartFinderModal: React.FC = () => {
     preferFamilyZone,
     requireAdjacentSeats,
     sortBy,
-    showToast,
   ]);
 
   useEffect(() => {

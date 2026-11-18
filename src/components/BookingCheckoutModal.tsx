@@ -328,13 +328,22 @@ export const BookingCheckoutModal: React.FC<{
                   Confirmation receipt dispatched to {useStadiumStore.getState().currentUser.email}
                 </div>
               </div>
-              <button
-                type="button"
-                onClick={() => setActiveModal('MY_TICKETS')}
-                className="px-3 py-1.5 rounded bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold"
-              >
-                Open All My Tickets
-              </button>
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setActiveModal('MY_QR')}
+                  className="px-3 py-1.5 rounded bg-slate-800 hover:bg-slate-700 border border-emerald-500/40 text-emerald-300 text-xs font-semibold"
+                >
+                  Open My QR
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveModal('MY_TICKETS')}
+                  className="px-3 py-1.5 rounded bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold"
+                >
+                  Open All My Tickets
+                </button>
+              </div>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

@@ -18,6 +18,24 @@ import { MyTicketsModal } from './components/MyTicketsModal';
 import { AdminDashboardModal } from './components/AdminDashboardModal';
 import { GateScannerModal } from './components/GateScannerModal';
 import { soundEngine } from './utils/soundEngine';
+import { buildDeterministicStaticStadiumBundle } from './shared/staticStadiumFallback';
+
+async function fetchJsonSafe<T = any>(
+  input: RequestInfo | URL,
+  init?: RequestInit
+): Promise<T | null> {
+  try {
+    const res = await fetch(input, init);
+    if (!res.ok) return null;
+    const contentType = res.headers.get('content-type') || '';
+    if (!contentType.toLowerCase().includes('application/json')) {
+      return null;
+    }
+    return (await res.json()) as T;
+  } catch {
+    return null;
+  }
+}
 
 export default function App() {
   const activeMatchId = useStadiumStore((s) => s.activeMatchId);
@@ -42,21 +60,30 @@ export default function App() {
 
   const [initialLoading, setInitialLoading] = useState<boolean>(true);
   const [holdingSeats, setHoldingSeats] = useState<boolean>(false);
+  const [hasLiveBackend, setHasLiveBackend] = useState<boolean>(false);
 
   const loadMatchesAndInventory = useCallback(
     async (matchIdToLoad: number) => {
-      const [matchesRes, invRes] = await Promise.all([
-        fetch('/api/matches'),
-        fetch(`/api/matches/${matchIdToLoad}/inventory`),
+      const [matchesJson, invJson] = await Promise.all([
+        fetchJsonSafe<{ matches?: any[] }>('/api/matches'),
+        fetchJsonSafe<{ inventory?: any[]; pricing?: any[] }>(
+          `/api/matches/${matchIdToLoad}/inventory`
+        ),
       ]);
-      const matchesJson = await matchesRes.json();
-      const invJson = await invRes.json();
 
-      if (matchesJson.matches) {
+      if (matchesJson?.matches?.length) {
         setMatches(matchesJson.matches);
+      } else {
+        const fallback = buildDeterministicStaticStadiumBundle();
+        setMatches(fallback.defaultMatches);
       }
-      if (invJson.inventory && invJson.pricing) {
+
+      if (invJson?.inventory && invJson?.pricing) {
         setMatchInventory(invJson.inventory, invJson.pricing);
+      } else {
+        const fallback = buildDeterministicStaticStadiumBundle();
+        const snap = fallback.getMatchInventorySnapshot(matchIdToLoad);
+        setMatchInventory(snap.inventory, snap.pricing);
       }
     },
     [setMatches, setMatchInventory]
@@ -80,27 +107,34 @@ export default function App() {
           visitorId = window.sessionStorage?.getItem('stadiumx_visitor_id') || null;
         } catch {}
 
-        const [meRes, stadiumRes, seatsRes] = await Promise.all([
-          fetch('/api/auth/me', {
+        const [healthData, meData, stadiumData, seatsData] = await Promise.all([
+          fetchJsonSafe<{ service?: string }>('/api/health'),
+          fetchJsonSafe<{ user?: any; token?: string }>('/api/auth/me', {
             headers: visitorId ? { 'x-stadiumx-visitor': visitorId } : undefined,
           }),
-          fetch('/api/stadium'),
-          fetch('/api/stadium/seats'),
+          fetchJsonSafe<{ stadium?: { spec?: any } }>('/api/stadium'),
+          fetchJsonSafe<{ seats?: any[] }>('/api/stadium/seats'),
         ]);
-
-        const meData = await meRes.json();
-        const stadiumData = await stadiumRes.json();
-        const seatsData = await seatsRes.json();
 
         if (!mounted) return;
 
-        if (meData.user) {
+        setHasLiveBackend(healthData?.service === 'STADIUMX-ENGINE');
+
+        if (meData?.user) {
           setUserSession(meData.user, meData.token || null);
         }
 
-        const loadedSeats = seatsData.seats || [];
-        if (stadiumData.stadium?.spec && loadedSeats.length > 0) {
-          setStadiumData(stadiumData.stadium.spec, loadedSeats);
+        const apiSeats = seatsData?.seats || [];
+        const hasValidApiStadium =
+          Boolean(stadiumData?.stadium?.spec) && apiSeats.length > 0;
+
+        let loadedSeats = apiSeats;
+        if (hasValidApiStadium) {
+          setStadiumData(stadiumData!.stadium!.spec, apiSeats);
+        } else {
+          const fallback = buildDeterministicStaticStadiumBundle();
+          loadedSeats = fallback.seats;
+          setStadiumData(fallback.stadium.spec, fallback.seats);
         }
 
         await loadMatchesAndInventory(activeMatchId);
@@ -124,6 +158,13 @@ export default function App() {
         }
       } catch (err) {
         console.error('Failed to bootstrap STADIUMX:', err);
+        if (mounted) {
+          const fallback = buildDeterministicStaticStadiumBundle();
+          setStadiumData(fallback.stadium.spec, fallback.seats);
+          setMatches(fallback.defaultMatches);
+          const snap = fallback.getMatchInventorySnapshot(activeMatchId);
+          setMatchInventory(snap.inventory, snap.pricing);
+        }
       } finally {
         if (mounted) {
           setInitialLoading(false);
@@ -144,8 +185,10 @@ export default function App() {
     }
   }, [activeMatchId, initialLoading, loadMatchesAndInventory]);
 
-  // Connect to Real-Time Socket.IO Server for Live Seat Updates
+  // Connect to Real-Time Socket.IO Server ONLY when live Express backend is present
   useEffect(() => {
+    if (!hasLiveBackend) return;
+
     const socket: Socket = io({
       transports: ['websocket', 'polling'],
     });
@@ -170,7 +213,7 @@ export default function App() {
       socket.emit('match:leave', activeMatchId);
       socket.disconnect();
     };
-  }, [activeMatchId, applySocketSeatUpdate]);
+  }, [hasLiveBackend, activeMatchId, applySocketSeatUpdate]);
 
   // Handler to Atomically Hold Selected Seats and Open Checkout
   const handleHoldSelectedSeats = async () => {
@@ -189,6 +232,11 @@ export default function App() {
         },
         body: JSON.stringify({ seatIds: selectedSeatIds }),
       });
+      const contentType = res.headers.get('content-type') || '';
+      if (!contentType.toLowerCase().includes('application/json')) {
+        showToast('Live seat booking requires an active backend server.', 'warning');
+        return;
+      }
       const data = await res.json();
       if (!res.ok) {
         showToast(data.error || 'Could not hold seats', 'error');
