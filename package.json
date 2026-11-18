@@ -8,7 +8,7 @@
     "start": "NODE_ENV=production tsx server.ts",
     "build": "vite build",
     "build:blender": "blender --background --python scripts/build_stadium_blender.py",
-    "test": "tsx --test src/shared/*.test.ts",
+    "test": "tsx --test src/shared/*.test.ts src/lib/*.test.ts",
     "test:perf": "node scripts/perf-regression-check.mjs",
     "preview": "vite preview",
     "clean": "rm -rf dist server.js",

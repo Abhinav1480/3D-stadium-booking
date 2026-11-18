@@ -19,19 +19,22 @@ import { MyQrModal } from './components/MyQrModal';
 import { PerfProfilerOverlay } from './components/PerfProfilerOverlay';
 import { soundEngine } from './utils/soundEngine';
 import { buildDeterministicStaticStadiumBundle } from './shared/staticStadiumFallback';
+import {
+  apiUrl,
+  buildAuthHeaders,
+  getSocketBaseUrl,
+  parseJsonResponse,
+} from './lib/api';
 
 async function fetchJsonSafe<T = any>(
-  input: RequestInfo | URL,
+  path: string,
   init?: RequestInit
 ): Promise<T | null> {
   try {
-    const res = await fetch(input, init);
+    const res = await fetch(apiUrl(path), init);
     if (!res.ok) return null;
-    const contentType = res.headers.get('content-type') || '';
-    if (!contentType.toLowerCase().includes('application/json')) {
-      return null;
-    }
-    return (await res.json()) as T;
+    const { isJson, data } = await parseJsonResponse<T>(res);
+    return isJson ? data : null;
   } catch {
     return null;
   }
@@ -102,15 +105,13 @@ export default function App() {
             window.sessionStorage?.setItem('stadiumx_visitor_id', paramVisitor);
           } catch {}
         }
-        let visitorId: string | null = null;
-        try {
-          visitorId = window.sessionStorage?.getItem('stadiumx_visitor_id') || null;
-        } catch {}
-
         const [healthData, meData, stadiumData, seatsData] = await Promise.all([
-          fetchJsonSafe<{ service?: string }>('/api/health'),
+          fetchJsonSafe<{
+            service?: string;
+            database?: { configured?: boolean; connected?: boolean };
+          }>('/api/health'),
           fetchJsonSafe<{ user?: any; token?: string }>('/api/auth/me', {
-            headers: visitorId ? { 'x-stadiumx-visitor': visitorId } : undefined,
+            headers: buildAuthHeaders(null),
           }),
           fetchJsonSafe<{ stadium?: { spec?: any } }>('/api/stadium'),
           fetchJsonSafe<{ seats?: any[] }>('/api/stadium/seats'),
@@ -189,9 +190,10 @@ export default function App() {
   useEffect(() => {
     if (!hasLiveBackend) return;
 
-    const socket: Socket = io({
-      transports: ['websocket', 'polling'],
-    });
+    const socketBase = getSocketBaseUrl();
+    const socket: Socket = socketBase
+      ? io(socketBase, { transports: ['websocket', 'polling'] })
+      : io({ transports: ['websocket', 'polling'] });
 
     socket.on('connect', () => {
       socket.emit('match:join', activeMatchId);
@@ -224,20 +226,21 @@ export default function App() {
 
     setHoldingSeats(true);
     try {
-      const res = await fetch(`/api/matches/${activeMatchId}/holds`, {
+      const res = await fetch(apiUrl(`/api/matches/${activeMatchId}/holds`), {
         method: 'POST',
-        headers: {
+        headers: buildAuthHeaders(sessionToken, {
           'Content-Type': 'application/json',
-          ...(sessionToken ? { Authorization: `Bearer ${sessionToken}` } : {}),
-        },
+        }),
         body: JSON.stringify({ seatIds: selectedSeatIds }),
       });
-      const contentType = res.headers.get('content-type') || '';
-      if (!contentType.toLowerCase().includes('application/json')) {
-        showToast('Live seat booking requires an active backend server.', 'warning');
+      const { isJson, data } = await parseJsonResponse(res);
+      if (!isJson || !data) {
+        showToast(
+          'Live seat booking requires an active backend server (configure VITE_API_BASE_URL).',
+          'warning'
+        );
         return;
       }
-      const data = await res.json();
       if (!res.ok) {
         showToast(data.error || 'Could not hold seats', 'error');
         await loadMatchesAndInventory(activeMatchId);

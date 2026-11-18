@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useStadiumStore } from '../store/useStadiumStore';
 import { soundEngine } from '../utils/soundEngine';
 import { downloadQrPng } from '../utils/qrClient';
+import { apiUrl, buildAuthHeaders, parseJsonResponse } from '../lib/api';
 
 export const BookingCheckoutModal: React.FC<{
   onRefreshInventory: () => Promise<void>;
@@ -72,10 +73,10 @@ export const BookingCheckoutModal: React.FC<{
     }
     try {
       await fetch(
-        `/api/matches/${activeHold.matchId}/holds/${activeHold.holdToken}`,
+        apiUrl(`/api/matches/${activeHold.matchId}/holds/${activeHold.holdToken}`),
         {
           method: 'DELETE',
-          headers: sessionToken ? { Authorization: `Bearer ${sessionToken}` } : {},
+          headers: buildAuthHeaders(sessionToken),
         }
       );
       setActiveHold(null);
@@ -91,18 +92,21 @@ export const BookingCheckoutModal: React.FC<{
     if (!activeHold) return;
     setSubmitting(true);
     try {
-      const res = await fetch('/api/bookings/checkout', {
+      const res = await fetch(apiUrl('/api/bookings/checkout'), {
         method: 'POST',
-        headers: {
+        headers: buildAuthHeaders(sessionToken, {
           'Content-Type': 'application/json',
-          ...(sessionToken ? { Authorization: `Bearer ${sessionToken}` } : {}),
-        },
+        }),
         body: JSON.stringify({
           matchId: activeHold.matchId,
           holdToken: activeHold.holdToken,
         }),
       });
-      const data = await res.json();
+      const { isJson, data } = await parseJsonResponse(res);
+      if (!isJson || !data) {
+        showToast('Backend checkout service returned an invalid response.', 'error');
+        return;
+      }
       if (!res.ok) {
         showToast(data.error || 'Checkout failed', 'error');
         return;
@@ -120,18 +124,21 @@ export const BookingCheckoutModal: React.FC<{
     if (!checkoutOrder) return;
     setSubmitting(true);
     try {
-      const res = await fetch('/api/payments/verify-test', {
+      const res = await fetch(apiUrl('/api/payments/verify-test'), {
         method: 'POST',
-        headers: {
+        headers: buildAuthHeaders(sessionToken, {
           'Content-Type': 'application/json',
-          ...(sessionToken ? { Authorization: `Bearer ${sessionToken}` } : {}),
-        },
+        }),
         body: JSON.stringify({
           razorpayOrderId: checkoutOrder.razorpayOrderId,
           simulateTestSuccess: true,
         }),
       });
-      const data = await res.json();
+      const { isJson, data } = await parseJsonResponse(res);
+      if (!isJson || !data) {
+        showToast('Backend payment verifier returned an invalid response.', 'error');
+        return;
+      }
       if (!res.ok) {
         showToast(data.error || 'Payment verification failed', 'error');
         return;

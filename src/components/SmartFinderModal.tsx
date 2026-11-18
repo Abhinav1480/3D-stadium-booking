@@ -20,6 +20,7 @@ import {
   type SeatRecommendationGroup,
   type SeatWithInventory,
 } from '../shared/stadiumSpec';
+import { apiUrl, parseJsonResponse } from '../lib/api';
 
 const BUDGET_PRESETS = [
   { label: '₹2.5k', value: 2500 },
@@ -91,22 +92,19 @@ export const SmartFinderModal: React.FC = () => {
     };
 
     try {
-      const res = await fetch(`/api/matches/${activeMatchId}/recommendations`, {
+      const res = await fetch(apiUrl(`/api/matches/${activeMatchId}/recommendations`), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(prefs),
       });
-      const contentType = res.headers.get('content-type') || '';
-      if (!res.ok || !contentType.toLowerCase().includes('application/json')) {
+      const { isJson, data } = await parseJsonResponse<{
+        recommendations?: SeatRecommendationGroup[];
+      }>(res);
+      if (!res.ok || !isJson || !data?.recommendations) {
         computeLocal();
         return;
       }
-      const data = await res.json();
-      if (data.recommendations) {
-        setResults(data.recommendations);
-      } else {
-        computeLocal();
-      }
+      setResults(data.recommendations);
     } catch {
       computeLocal();
     } finally {

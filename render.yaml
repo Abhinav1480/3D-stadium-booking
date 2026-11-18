@@ -1,0 +1,31 @@
+services:
+  - type: web
+    name: stadiumx-backend
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: npx drizzle-kit push --config=src/db/drizzle.config.ts --force && npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        fromDatabase:
+          name: stadiumx-postgres
+          property: connectionString
+      - key: CORS_ORIGINS
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
+      - key: QR_HMAC_SECRET
+        generateValue: true
+      - key: RAZORPAY_KEY_ID
+        value: rzp_test_stadiumx_demo_key
+      - key: RAZORPAY_KEY_SECRET
+        value: rzp_test_stadiumx_webhook_secret
+
+databases:
+  - name: stadiumx-postgres
+    plan: free
+    databaseName: stadiumx
+    user: stadiumx_user

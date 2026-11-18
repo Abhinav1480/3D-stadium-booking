@@ -1,5 +1,6 @@
 import 'dotenv/config';
 import express from 'express';
+import fs from 'node:fs';
 import { createServer } from 'node:http';
 import path from 'node:path';
 import { gzipSync } from 'node:zlib';
@@ -12,7 +13,7 @@ import {
   signSessionToken,
   type AuthRequest,
 } from './src/middleware/auth.ts';
-import { isDatabaseConfigured } from './src/db/index.ts';
+import { checkDatabaseHealth, isDatabaseConfigured } from './src/db/index.ts';
 import {
   cancelBookingAndRefund,
   confirmPaymentAndIssueTickets,
@@ -37,14 +38,92 @@ import {
 import { buildDeterministicStaticStadiumBundle } from './src/shared/staticStadiumFallback.ts';
 import { computeRazorpaySignature } from './src/shared/security.ts';
 
+function buildCorsOriginMatcher() {
+  const raw = [
+    process.env.CORS_ORIGINS,
+    process.env.ALLOWED_ORIGINS,
+    process.env.APP_URL,
+  ]
+    .filter(Boolean)
+    .join(',');
+
+  const entries = raw
+    .split(',')
+    .map((s) => s.trim().replace(/\/+$/, ''))
+    .filter(Boolean);
+
+  const allowAll = entries.includes('*');
+
+  return (origin?: string | null): boolean => {
+    if (!origin) return true;
+    if (allowAll) return true;
+    const normalized = origin.replace(/\/+$/, '');
+    if (entries.includes(normalized)) return true;
+
+    try {
+      const parsed = new URL(normalized);
+      const host = parsed.hostname.toLowerCase();
+      if (
+        host === 'localhost' ||
+        host === '127.0.0.1' ||
+        host.endsWith('.vercel.app') ||
+        host.endsWith('.run.app')
+      ) {
+        return true;
+      }
+      for (const entry of entries) {
+        if (entry.startsWith('*.')) {
+          const suffix = entry.slice(1).toLowerCase();
+          if (host.endsWith(suffix)) return true;
+        }
+      }
+    } catch {
+      return false;
+    }
+
+    return entries.length === 0;
+  };
+}
+
 async function startServer() {
   const app = express();
+  app.set('trust proxy', 1);
   const httpServer = createServer(app);
+  const isOriginAllowed = buildCorsOriginMatcher();
+
   const io = new SocketIOServer(httpServer, {
     cors: {
-      origin: '*',
-      methods: ['GET', 'POST', 'PATCH', 'DELETE'],
+      origin: (origin, callback) => {
+        if (isOriginAllowed(origin)) {
+          callback(null, true);
+        } else {
+          callback(new Error('Origin not allowed by CORS'));
+        }
+      },
+      methods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
+      credentials: true,
     },
+  });
+
+  app.use((req, res, next) => {
+    const origin = req.headers.origin;
+    if (origin && isOriginAllowed(origin)) {
+      res.setHeader('Access-Control-Allow-Origin', origin);
+      res.setHeader('Vary', 'Origin');
+      res.setHeader('Access-Control-Allow-Credentials', 'true');
+      res.setHeader(
+        'Access-Control-Allow-Methods',
+        'GET, POST, PUT, PATCH, DELETE, OPTIONS'
+      );
+      res.setHeader(
+        'Access-Control-Allow-Headers',
+        'Content-Type, Authorization, x-stadiumx-visitor'
+      );
+    }
+    if (req.method === 'OPTIONS') {
+      return res.status(204).end();
+    }
+    next();
   });
 
   app.use(express.json({ limit: '2mb' }));
@@ -103,14 +182,30 @@ async function startServer() {
     }
   }, 5000);
 
-  // Health Check
-  app.get('/api/health', (_req, res) => {
+  // Health Check (includes PostgreSQL readiness status)
+  app.get('/api/health', async (_req, res) => {
+    const database = await checkDatabaseHealth();
     res.json({
       status: 'ok',
       service: 'STADIUMX-ENGINE',
+      database,
       timestamp: new Date().toISOString(),
     });
   });
+
+  const requireDatabase = (
+    _req: express.Request,
+    res: express.Response,
+    next: express.NextFunction
+  ) => {
+    if (!isDatabaseConfigured()) {
+      return res.status(503).json({
+        error:
+          'PostgreSQL database is not configured on the backend server (set DATABASE_URL or SQL_HOST/SQL_DB_NAME).',
+      });
+    }
+    next();
+  };
 
   // Customer Session Endpoint
   app.get('/api/auth/me', requireAuth, async (req: AuthRequest, res) => {
@@ -369,6 +464,7 @@ async function startServer() {
 
   app.post(
     '/api/matches/:matchId/holds',
+    requireDatabase,
     rateLimitMiddleware(35),
     requireAuth,
     async (req: AuthRequest, res) => {
@@ -409,6 +505,7 @@ async function startServer() {
 
   app.delete(
     '/api/matches/:matchId/holds/:holdToken',
+    requireDatabase,
     requireAuth,
     async (req: AuthRequest, res) => {
       try {
@@ -441,6 +538,7 @@ async function startServer() {
 
   app.post(
     '/api/bookings/checkout',
+    requireDatabase,
     rateLimitMiddleware(25),
     requireAuth,
     async (req: AuthRequest, res) => {
@@ -475,6 +573,7 @@ async function startServer() {
 
   app.post(
     '/api/payments/verify-test',
+    requireDatabase,
     requireAuth,
     async (req: AuthRequest, res) => {
       try {
@@ -496,6 +595,8 @@ async function startServer() {
           razorpayOrderId,
           razorpayPaymentId: paymentId,
           razorpaySignature: signature,
+          userUid: req.user!.uid,
+          userEmail: req.user!.email,
         });
 
         // Generate QR SVG data URLs for each issued ticket
@@ -533,7 +634,7 @@ async function startServer() {
   );
 
   // User Bookings & Cancellation
-  app.get('/api/bookings/my', requireAuth, async (req: AuthRequest, res) => {
+  app.get('/api/bookings/my', requireDatabase, requireAuth, async (req: AuthRequest, res) => {
     try {
       const list = await listUserBookings(req.user!.uid, req.user!.email);
       const enriched = await Promise.all(
@@ -564,7 +665,7 @@ async function startServer() {
     }
   });
 
-  app.post('/api/bookings/:bookingId/cancel', requireAuth, async (req: AuthRequest, res) => {
+  app.post('/api/bookings/:bookingId/cancel', requireDatabase, requireAuth, async (req: AuthRequest, res) => {
     try {
       const bookingId = Number(req.params.bookingId);
       const cancelled = await cancelBookingAndRefund({
@@ -664,24 +765,66 @@ async function startServer() {
     next();
   });
 
-  // Mount Vite dev server or production static bundle
+  // Always return JSON 404 for unknown /api/* routes instead of HTML fallback
+  app.all('/api/*', (_req, res) => {
+    res.status(404).json({ error: 'API endpoint not found' });
+  });
+
+  // Mount Vite dev server or production static bundle (if dist/ is present)
   if (process.env.NODE_ENV !== 'production') {
     const vite = await createViteServer({
-      server: { middlewareMode: true },
+      server: {
+        middlewareMode: true,
+        allowedHosts: true,
+        ...(process.env.DISABLE_HMR === 'true' ? { hmr: false } : {}),
+      },
       appType: 'spa',
     });
     app.use(vite.middlewares);
   } else {
     const distPath = path.resolve(process.cwd(), 'dist');
-    app.use(express.static(distPath, { maxAge: '1d' }));
-    app.get('*', (_req, res) => {
-      res.sendFile(path.join(distPath, 'index.html'));
-    });
+    const distIndexPath = path.join(distPath, 'index.html');
+    if (fs.existsSync(distIndexPath)) {
+      app.use(express.static(distPath, { maxAge: '1d' }));
+      app.get('*', (_req, res) => {
+        res.sendFile(distIndexPath);
+      });
+    } else {
+      app.get('/', async (_req, res) => {
+        const database = await checkDatabaseHealth();
+        res.json({
+          status: 'ok',
+          service: 'STADIUMX-ENGINE',
+          mode: 'api-only',
+          database,
+        });
+      });
+    }
   }
 
-  const PORT = Number(process.env.PORT) || 3000;
-  httpServer.listen(PORT, '0.0.0.0', () => {
-    console.log(`STADIUMX Full-Stack Server & Socket.IO listening on http://0.0.0.0:${PORT}`);
+  const readCliArg = (flag: string): string | undefined => {
+    const eqPrefix = `${flag}=`;
+    for (let i = 2; i < process.argv.length; i++) {
+      const arg = process.argv[i];
+      if (arg === flag && i + 1 < process.argv.length) {
+        return process.argv[i + 1];
+      }
+      if (arg.startsWith(eqPrefix)) {
+        return arg.slice(eqPrefix.length);
+      }
+    }
+    return undefined;
+  };
+
+  const cliPort = Number(readCliArg('--port'));
+  const PORT =
+    Number.isFinite(cliPort) && cliPort > 0
+      ? cliPort
+      : Number(process.env.PORT) || 3000;
+  const HOST = readCliArg('--host') || '0.0.0.0';
+
+  httpServer.listen(PORT, HOST, () => {
+    console.log(`STADIUMX Full-Stack Server & Socket.IO listening on http://${HOST}:${PORT}`);
   });
 }
 

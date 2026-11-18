@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { useStadiumStore } from '../store/useStadiumStore';
 import { downloadQrPng, downloadTicketPdf } from '../utils/qrClient';
+import { apiUrl, buildAuthHeaders, parseJsonResponse } from '../lib/api';
 
 type TicketTabFilter = 'ALL' | 'UPCOMING' | 'CONFIRMED' | 'COMPLETED' | 'CANCELLED';
 
@@ -45,11 +46,11 @@ export const MyTicketsModal: React.FC<{
   const loadBookings = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch('/api/bookings/my', {
-        headers: sessionToken ? { Authorization: `Bearer ${sessionToken}` } : {},
+      const res = await fetch(apiUrl('/api/bookings/my'), {
+        headers: buildAuthHeaders(sessionToken),
       });
-      const data = await res.json();
-      if (data.bookings) {
+      const { isJson, data } = await parseJsonResponse<{ bookings?: any[] }>(res);
+      if (isJson && data?.bookings) {
         setBookings(data.bookings);
       }
     } catch {
@@ -111,11 +112,15 @@ export const MyTicketsModal: React.FC<{
   const handleCancelBooking = async (bookingId: number) => {
     setCancellingId(bookingId);
     try {
-      const res = await fetch(`/api/bookings/${bookingId}/cancel`, {
+      const res = await fetch(apiUrl(`/api/bookings/${bookingId}/cancel`), {
         method: 'POST',
-        headers: sessionToken ? { Authorization: `Bearer ${sessionToken}` } : {},
+        headers: buildAuthHeaders(sessionToken),
       });
-      const data = await res.json();
+      const { isJson, data } = await parseJsonResponse(res);
+      if (!isJson || !data) {
+        showToast('Backend cancellation service unavailable', 'error');
+        return;
+      }
       if (!res.ok) {
         showToast(data.error || 'Cancellation failed', 'error');
         return;

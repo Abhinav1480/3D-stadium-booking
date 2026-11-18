@@ -28,6 +28,7 @@ import {
   type SpatialSeatingIndex,
 } from '../shared/seatingSpatial';
 import { soundEngine } from '../utils/soundEngine';
+import { apiUrl } from '../lib/api';
 import { SeatHoverTooltip } from './SeatHoverTooltip';
 
 const HERO_POOL_MAX = 96;
@@ -3696,7 +3697,7 @@ export const StadiumCanvas3D: React.FC = () => {
         if (entered) {
           soundEngine.playChime('select');
           // Non-blocking backend inventory revalidation
-          fetch(`/api/matches/${st.activeMatchId}/inventory`)
+          fetch(apiUrl(`/api/matches/${st.activeMatchId}/inventory`))
             .then((r) =>
               r.ok && (r.headers.get('content-type') || '').toLowerCase().includes('application/json')
                 ? r.json()

@@ -20,6 +20,7 @@ import {
   type CustomerQrPassItem,
 } from '../shared/customerQr';
 import { downloadQrPng, downloadTicketPdf } from '../utils/qrClient';
+import { apiUrl, buildAuthHeaders, parseJsonResponse } from '../lib/api';
 
 export const MyQrModal: React.FC = () => {
   const activeModal = useStadiumStore((s) => s.activeModal);
@@ -38,11 +39,13 @@ export const MyQrModal: React.FC = () => {
   const loadCustomerQrPasses = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch('/api/bookings/my', {
-        headers: sessionToken ? { Authorization: `Bearer ${sessionToken}` } : {},
+      const res = await fetch(apiUrl('/api/bookings/my'), {
+        headers: buildAuthHeaders(sessionToken),
       });
-      const data = await res.json();
-      if (data.bookings) {
+      const { isJson, data } = await parseJsonResponse<{
+        bookings?: CustomerBookingRecord[];
+      }>(res);
+      if (isJson && data?.bookings) {
         setBookings(data.bookings);
       }
     } catch {
