@@ -9,37 +9,24 @@ import { z } from 'zod';
 import QRCode from 'qrcode';
 import {
   requireAuth,
-  requireRole,
   signSessionToken,
   type AuthRequest,
 } from './src/middleware/auth.ts';
 import { isDatabaseConfigured } from './src/db/index.ts';
 import {
-  adminSetSeatBlockState,
   cancelBookingAndRefund,
   confirmPaymentAndIssueTickets,
-  createAdminMatch,
   createCheckoutOrder,
-  getAdminAnalytics,
-  getAdminBlockSeats,
-  getAdminReferenceData,
-  getGateScanLogs,
-  getGateTurnstilePasses,
   getMatchInventorySnapshot,
   getOrCreateUser,
   getStadiumBundle,
   getStaticStadiumSeats,
   incrementSeatViewCount,
-  listAdminAuditLogs,
-  listAdminBookings,
   listMatchesWithStats,
   listUserBookings,
   placeAtomicSeatHold,
   releaseSeatHold,
   sweepExpiredHolds,
-  updateAdminMatch,
-  updateMatchDynamicMultipliers,
-  validateGateQrToken,
 } from './src/db/repository.ts';
 import {
   DEFAULT_STADIUM_SPEC,
@@ -125,7 +112,7 @@ async function startServer() {
     });
   });
 
-  // Auth & Role Switching Endpoints
+  // Customer Session Endpoint
   app.get('/api/auth/me', requireAuth, async (req: AuthRequest, res) => {
     if (!req.user) {
       return res.status(401).json({ error: 'Not authenticated' });
@@ -135,7 +122,7 @@ async function startServer() {
         uid: req.user!.uid,
         email: req.user!.email,
         name: req.user!.name,
-        role: req.user!.role,
+        role: 'USER' as const,
       };
       const token = signSessionToken(fallbackUser);
       return { user: fallbackUser, token };
@@ -149,60 +136,17 @@ async function startServer() {
       const dbUser = await getOrCreateUser(
         req.user.uid,
         req.user.email,
-        req.user.name,
-        req.user.role
+        req.user.name
       );
       const token = signSessionToken({
         uid: dbUser.uid,
         email: dbUser.email,
         name: dbUser.name,
-        role: dbUser.role as 'USER' | 'ADMIN' | 'GATE_STAFF',
+        role: 'USER',
       });
       res.json({ user: dbUser, token });
     } catch {
       res.json(buildStatelessAuthResponse());
-    }
-  });
-
-  const SwitchRoleSchema = z.object({
-    role: z.enum(['USER', 'ADMIN', 'GATE_STAFF']),
-  });
-
-  app.post('/api/auth/switch-role', requireAuth, async (req: AuthRequest, res) => {
-    try {
-      const parsed = SwitchRoleSchema.safeParse(req.body);
-      if (!parsed.success) {
-        return res.status(400).json({ error: 'Invalid role specified' });
-      }
-      const { role } = parsed.data;
-      const roleUserMap = {
-        USER: {
-          uid: 'demo-fan-uid',
-          email: 'fan@stadiumx.in',
-          name: 'Aarav Mehta',
-        },
-        ADMIN: {
-          uid: 'demo-admin-uid',
-          email: 'admin@stadiumx.in',
-          name: 'Vikram Rathore (Venue Director)',
-        },
-        GATE_STAFF: {
-          uid: 'demo-gate-uid',
-          email: 'gate@stadiumx.in',
-          name: 'Suresh Nair (Gate 1 Turnstile)',
-        },
-      };
-      const target = roleUserMap[role];
-      const dbUser = await getOrCreateUser(target.uid, target.email, target.name, role);
-      const token = signSessionToken({
-        uid: dbUser.uid,
-        email: dbUser.email,
-        name: dbUser.name,
-        role,
-      });
-      res.json({ user: dbUser, token });
-    } catch (error: any) {
-      res.status(500).json({ error: error.message || 'Failed to switch role' });
     }
   });
 
@@ -645,397 +589,6 @@ async function startServer() {
     }
   });
 
-  // Gate Staff QR Validation & Turnstile Telemetry
-  const GateValidateSchema = z
-    .object({
-      qrToken: z.string().min(5).optional(),
-      ticketCode: z.string().min(3).optional(),
-      expectedMatchId: z.number().int().positive().optional(),
-    })
-    .refine((d) => Boolean(d.qrToken || d.ticketCode), {
-      message: 'QR token or ticket reference is required',
-    });
-
-  app.post(
-    '/api/gate/validate-qr',
-    requireAuth,
-    requireRole(['GATE_STAFF', 'ADMIN']),
-    async (req: AuthRequest, res) => {
-      try {
-        const parsed = GateValidateSchema.safeParse(req.body);
-        if (!parsed.success) {
-          return res.status(400).json({ error: 'QR token or ticket reference is required' });
-        }
-
-        const result = await validateGateQrToken({
-          qrToken: parsed.data.qrToken,
-          ticketCode: parsed.data.ticketCode,
-          expectedMatchId: parsed.data.expectedMatchId,
-          staffUid: req.user!.uid,
-          staffEmail: req.user!.email,
-          staffName: req.user!.name,
-          staffRole: req.user!.role === 'ADMIN' ? 'ADMIN' : 'GATE_STAFF',
-        });
-
-        res.json(result);
-      } catch (error: any) {
-        res.status(500).json({ error: error.message || 'QR validation failed' });
-      }
-    }
-  );
-
-  app.get(
-    '/api/gate/passes',
-    requireAuth,
-    requireRole(['GATE_STAFF', 'ADMIN']),
-    async (req: AuthRequest, res) => {
-      try {
-        const matchId = req.query.matchId ? Number(req.query.matchId) : undefined;
-        const passes = await getGateTurnstilePasses(matchId);
-        const withQr = await Promise.all(
-          passes.map(async (p) => {
-            const qrDataUrl = await QRCode.toDataURL(p.qrSignedToken, {
-              margin: 2,
-              width: 320,
-              errorCorrectionLevel: 'M',
-              color: {
-                dark: '#0B0F17',
-                light: '#FFFFFF',
-              },
-            });
-            return {
-              id: p.id,
-              ticketCode: p.ticketCode,
-              matchId: p.matchId,
-              matchTitle: p.matchTitle,
-              status: p.status,
-              scannedAt: p.scannedAt,
-              seatCode: p.seatCode,
-              standName: p.standName,
-              blockName: p.blockName,
-              rowNumber: p.rowNumber,
-              seatNumber: p.seatNumber,
-              attendeeName: p.attendeeName,
-              qrDataUrl,
-            };
-          })
-        );
-        res.json({ passes: withQr });
-      } catch (error: any) {
-        res.status(500).json({ error: error.message || 'Failed to load gate passes' });
-      }
-    }
-  );
-
-  app.get(
-    '/api/gate/scan-logs',
-    requireAuth,
-    requireRole(['GATE_STAFF', 'ADMIN']),
-    async (req: AuthRequest, res) => {
-      try {
-        const matchId = req.query.matchId ? Number(req.query.matchId) : undefined;
-        const logs = await getGateScanLogs(matchId, 30);
-        res.json({ scanLogs: logs });
-      } catch (error: any) {
-        res.status(500).json({ error: error.message || 'Failed to load scan logs' });
-      }
-    }
-  );
-
-  // Admin Operations & Analytics
-  app.get(
-    '/api/admin/meta',
-    requireAuth,
-    requireRole(['ADMIN']),
-    async (_req, res) => {
-      try {
-        const meta = await getAdminReferenceData();
-        res.json(meta);
-      } catch (error: any) {
-        res.status(500).json({ error: error.message || 'Failed to load admin reference data' });
-      }
-    }
-  );
-
-  app.get(
-    '/api/admin/analytics/:matchId',
-    requireAuth,
-    requireRole(['ADMIN']),
-    async (req, res) => {
-      try {
-        const matchId = Number(req.params.matchId);
-        const daysFilter = req.query.days ? Number(req.query.days) : 0;
-        const analytics = await getAdminAnalytics(matchId, daysFilter);
-        res.json(analytics);
-      } catch (error: any) {
-        res.status(500).json({ error: error.message || 'Failed to load admin analytics' });
-      }
-    }
-  );
-
-  const AdminMatchCreateSchema = z.object({
-    stadiumId: z.number().int().positive(),
-    homeTeamId: z.number().int().positive(),
-    awayTeamId: z.number().int().positive(),
-    tournament: z.string().min(2).max(120),
-    title: z.string().min(3).max(160),
-    startTimeIso: z.string().min(8),
-    status: z.enum(['UPCOMING', 'LIVE', 'COMPLETED', 'CANCELLED']).default('UPCOMING'),
-    demandMultiplier: z.number().min(0.5).max(3.0).default(1.0),
-    rivalryMultiplier: z.number().min(0.5).max(3.0).default(1.0),
-    weekendMultiplier: z.number().min(0.5).max(3.0).default(1.0),
-    categoryBasePrices: z
-      .array(
-        z.object({
-          categoryId: z.number().int().positive(),
-          basePricePaise: z.number().int().min(10000).max(50000000),
-        })
-      )
-      .optional(),
-  });
-
-  app.post(
-    '/api/admin/matches',
-    requireAuth,
-    requireRole(['ADMIN']),
-    async (req: AuthRequest, res) => {
-      try {
-        const parsed = AdminMatchCreateSchema.safeParse(req.body);
-        if (!parsed.success) {
-          return res.status(400).json({ error: 'Invalid match creation payload' });
-        }
-        const match = await createAdminMatch({
-          ...parsed.data,
-          adminUid: req.user!.uid,
-          adminEmail: req.user!.email,
-        });
-        res.status(201).json({ match });
-      } catch (error: any) {
-        res.status(400).json({ error: error.message || 'Failed to create match' });
-      }
-    }
-  );
-
-  const AdminMatchUpdateSchema = AdminMatchCreateSchema.partial();
-
-  app.patch(
-    '/api/admin/matches/:matchId',
-    requireAuth,
-    requireRole(['ADMIN']),
-    async (req: AuthRequest, res) => {
-      try {
-        const matchId = Number(req.params.matchId);
-        const parsed = AdminMatchUpdateSchema.safeParse(req.body);
-        if (!parsed.success) {
-          return res.status(400).json({ error: 'Invalid match update payload' });
-        }
-        const match = await updateAdminMatch({
-          matchId,
-          ...parsed.data,
-          adminUid: req.user!.uid,
-          adminEmail: req.user!.email,
-        });
-        res.json({ match });
-      } catch (error: any) {
-        res.status(400).json({ error: error.message || 'Failed to update match' });
-      }
-    }
-  );
-
-  const UpdateMultipliersSchema = z.object({
-    demandMultiplier: z.number().min(0.5).max(3.0),
-    rivalryMultiplier: z.number().min(0.5).max(3.0),
-    weekendMultiplier: z.number().min(0.5).max(3.0),
-    categoryBasePrices: z
-      .array(
-        z.object({
-          categoryId: z.number().int().positive(),
-          basePricePaise: z.number().int().min(10000).max(50000000),
-        })
-      )
-      .optional(),
-  });
-
-  app.patch(
-    '/api/admin/matches/:matchId/pricing',
-    requireAuth,
-    requireRole(['ADMIN']),
-    async (req: AuthRequest, res) => {
-      try {
-        const matchId = Number(req.params.matchId);
-        const parsed = UpdateMultipliersSchema.safeParse(req.body);
-        if (!parsed.success) {
-          return res.status(400).json({ error: 'Multipliers must be between 0.5x and 3.0x' });
-        }
-
-        const updated = await updateMatchDynamicMultipliers({
-          matchId,
-          ...parsed.data,
-          adminUid: req.user!.uid,
-          adminEmail: req.user!.email,
-        });
-
-        res.json({ match: updated });
-      } catch (error: any) {
-        res.status(500).json({ error: error.message || 'Failed to update pricing' });
-      }
-    }
-  );
-
-  app.get(
-    '/api/admin/matches/:matchId/blocks/:blockCode/seats',
-    requireAuth,
-    requireRole(['ADMIN']),
-    async (req, res) => {
-      try {
-        const matchId = Number(req.params.matchId);
-        const blockCode = String(req.params.blockCode || '').toUpperCase();
-        const seatsList = await getAdminBlockSeats(matchId, blockCode);
-        res.json({ seats: seatsList });
-      } catch (error: any) {
-        res.status(500).json({ error: error.message || 'Failed to load block seats' });
-      }
-    }
-  );
-
-  const BlockSeatsSchema = z.object({
-    seatIds: z.array(z.number().int().positive()).min(1),
-    targetStatus: z.enum(['BLOCKED', 'AVAILABLE']),
-    reason: z.string().min(2).default('Camera / Operations Platform'),
-  });
-
-  app.post(
-    '/api/admin/matches/:matchId/block-seats',
-    requireAuth,
-    requireRole(['ADMIN']),
-    async (req: AuthRequest, res) => {
-      try {
-        const matchId = Number(req.params.matchId);
-        const parsed = BlockSeatsSchema.safeParse(req.body);
-        if (!parsed.success) {
-          return res.status(400).json({ error: 'Invalid seat block payload' });
-        }
-
-        const result = await adminSetSeatBlockState({
-          matchId,
-          seatIds: parsed.data.seatIds,
-          targetStatus: parsed.data.targetStatus,
-          reason: parsed.data.reason,
-          adminUid: req.user!.uid,
-          adminEmail: req.user!.email,
-        });
-
-        if (result.seatIds.length > 0) {
-          io.to(`match:${matchId}`).emit('seat:updated', {
-            matchId,
-            seatIds: result.seatIds,
-            instanceIndices: result.instanceIndices,
-            status: result.status,
-            holdExpiresAt: null,
-          });
-        }
-
-        res.json(result);
-      } catch (error: any) {
-        res.status(500).json({ error: error.message || 'Failed to update seat block state' });
-      }
-    }
-  );
-
-  app.get(
-    '/api/admin/bookings',
-    requireAuth,
-    requireRole(['ADMIN']),
-    async (req, res) => {
-      try {
-        const matchId = req.query.matchId ? Number(req.query.matchId) : undefined;
-        const status = req.query.status ? String(req.query.status) : undefined;
-        const search = req.query.search ? String(req.query.search) : undefined;
-        const page = req.query.page ? Number(req.query.page) : 1;
-        const pageSize = req.query.pageSize ? Number(req.query.pageSize) : 12;
-
-        const data = await listAdminBookings({ matchId, status, search, page, pageSize });
-        res.json(data);
-      } catch (error: any) {
-        res.status(500).json({ error: error.message || 'Failed to load admin bookings' });
-      }
-    }
-  );
-
-  app.post(
-    '/api/admin/bookings/:bookingId/cancel',
-    requireAuth,
-    requireRole(['ADMIN']),
-    async (req: AuthRequest, res) => {
-      try {
-        const bookingId = Number(req.params.bookingId);
-        const cancelled = await cancelBookingAndRefund({
-          bookingId,
-          userUid: req.user!.uid,
-          userEmail: req.user!.email,
-        });
-
-        if (cancelled.releasedSeatIds.length > 0) {
-          io.to(`match:${cancelled.matchId}`).emit('seat:updated', {
-            matchId: cancelled.matchId,
-            seatIds: cancelled.releasedSeatIds,
-            instanceIndices: cancelled.instanceIndices,
-            status: 'AVAILABLE',
-            holdExpiresAt: null,
-          });
-        }
-
-        res.json(cancelled);
-      } catch (error: any) {
-        res.status(400).json({ error: error.message || 'Failed to cancel booking' });
-      }
-    }
-  );
-
-  app.get(
-    '/api/admin/audit-logs',
-    requireAuth,
-    requireRole(['ADMIN']),
-    async (req, res) => {
-      try {
-        const limit = req.query.limit ? Number(req.query.limit) : 50;
-        const logs = await listAdminAuditLogs(limit);
-        res.json({ auditLogs: logs });
-      } catch (error: any) {
-        res.status(500).json({ error: error.message || 'Failed to load audit logs' });
-      }
-    }
-  );
-
-  app.get(
-    '/api/admin/reports/:matchId/bookings.csv',
-    requireAuth,
-    requireRole(['ADMIN']),
-    async (req, res) => {
-      try {
-        const matchId = Number(req.params.matchId);
-        const analytics = await getAdminAnalytics(matchId);
-        const lines = [
-          'Stand Code,Stand Name,Total Seats,Booked Seats,Held Seats,Blocked Seats,Occupancy %,Revenue (INR)',
-          ...analytics.standOccupancy.map(
-            (s) =>
-              `${s.standCode},"${s.standName}",${s.total},${s.booked},${s.held},${s.blocked},${s.occupancyPct}%,${(
-                s.revenuePaise / 100
-              ).toFixed(2)}`
-          ),
-        ];
-        res.setHeader('Content-Type', 'text/csv');
-        res.setHeader(
-          'Content-Disposition',
-          `attachment; filename="stadiumx-match-${matchId}-report.csv"`
-        );
-        res.send(lines.join('\n'));
-      } catch (error: any) {
-        res.status(500).json({ error: error.message || 'Failed to export CSV' });
-      }
-    }
-  );
-
   // Blender GLB Anchor Manifest Validator
   const BlenderValidateSchema = z.object({
     anchors: z.array(
@@ -1054,7 +607,16 @@ async function startServer() {
       if (!parsed.success) {
         return res.status(400).json({ error: 'Invalid Blender anchor manifest format' });
       }
-      const staticSeats = await getStaticStadiumSeats();
+      let staticSeats;
+      if (isDatabaseConfigured()) {
+        try {
+          staticSeats = await getStaticStadiumSeats();
+        } catch {
+          staticSeats = buildDeterministicStaticStadiumBundle(DEFAULT_STADIUM_SPEC).seats;
+        }
+      } else {
+        staticSeats = buildDeterministicStaticStadiumBundle(DEFAULT_STADIUM_SPEC).seats;
+      }
       const seatByCode = new Map(staticSeats.map((s) => [s.seatCode, s]));
 
       const mismatches: Array<{ seatCode: string; reason: string; driftMetres?: number }> = [];

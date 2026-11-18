@@ -15,8 +15,8 @@ import { BottomControlDock } from './components/BottomControlDock';
 import { SmartFinderModal } from './components/SmartFinderModal';
 import { BookingCheckoutModal } from './components/BookingCheckoutModal';
 import { MyTicketsModal } from './components/MyTicketsModal';
-import { AdminDashboardModal } from './components/AdminDashboardModal';
-import { GateScannerModal } from './components/GateScannerModal';
+import { MyQrModal } from './components/MyQrModal';
+import { PerfProfilerOverlay } from './components/PerfProfilerOverlay';
 import { soundEngine } from './utils/soundEngine';
 import { buildDeterministicStaticStadiumBundle } from './shared/staticStadiumFallback';
 
@@ -326,25 +326,14 @@ export default function App() {
           </button>
           <button
             type="button"
-            onClick={() => setActiveModal('ADMIN_OPS')}
+            onClick={() => setActiveModal('MY_QR')}
             className={`hover:text-white transition-colors whitespace-nowrap shrink-0 ${
-              activeModal === 'ADMIN_OPS'
+              activeModal === 'MY_QR'
                 ? 'text-emerald-400 underline underline-offset-4'
                 : ''
             }`}
           >
-            Admin Ops
-          </button>
-          <button
-            type="button"
-            onClick={() => setActiveModal('GATE_QR')}
-            className={`hover:text-white transition-colors whitespace-nowrap shrink-0 ${
-              activeModal === 'GATE_QR'
-                ? 'text-emerald-400 underline underline-offset-4'
-                : ''
-            }`}
-          >
-            Gate QR
+            My QR
           </button>
         </nav>
 
@@ -425,10 +414,8 @@ export default function App() {
       <MyTicketsModal
         onRefreshInventory={() => loadMatchesAndInventory(activeMatchId)}
       />
-      <AdminDashboardModal
-        onRefreshAll={() => loadMatchesAndInventory(activeMatchId)}
-      />
-      <GateScannerModal />
+      <MyQrModal />
+      <PerfProfilerOverlay />
 
       {/* Initial Loading Progress Overlay */}
       {initialLoading && seats.length === 0 && (
