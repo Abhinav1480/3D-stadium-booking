@@ -3,7 +3,7 @@ services:
     name: stadiumx-backend
     runtime: node
     plan: free
-    buildCommand: npm install
+    buildCommand: bun install --frozen-lockfile
     startCommand: npx drizzle-kit push --config=src/db/drizzle.config.ts --force && npm start
     healthCheckPath: /api/health
     envVars:
