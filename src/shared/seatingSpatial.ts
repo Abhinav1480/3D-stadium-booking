@@ -9,6 +9,7 @@ import {
 
 export type SeatLodTier = 'LOD0' | 'LOD1' | 'LOD2' | 'LOD3' | 'ROW_STRIP';
 export type SpatialQualityPreset = 'LOW' | 'MEDIUM' | 'HIGH' | 'ULTRA';
+export const DEFAULT_QUALITY_PRESET: SpatialQualityPreset = 'LOW';
 export const ROW_STRIP_DISTANCE_M = 150;
 export const LOD_HYSTERESIS_RATIO = 0.1;
 
@@ -17,6 +18,7 @@ export interface QualityPresetConfig {
   maxDpr: number;
   maxDprSoftware: number;
   resolutionScale: number;
+  antialias: boolean;
   shadowsEnabled: boolean;
   shadowMapSize: 512 | 1024 | 2048;
   seatsCastShadowLod1: boolean;
@@ -35,6 +37,7 @@ export interface QualityPresetConfig {
   aoIntensity: number;
   macroDetailEnabled: boolean;
   fillLightEnabled: boolean;
+  ambientEffectsEnabled: boolean;
   lod1SurfaceDist: number;
   lod2SurfaceDist: number;
 }
@@ -45,6 +48,7 @@ export const QUALITY_PRESET_CONFIGS: Record<SpatialQualityPreset, QualityPresetC
     maxDpr: 0.9,
     maxDprSoftware: 0.75,
     resolutionScale: 0.75,
+    antialias: false,
     shadowsEnabled: false,
     shadowMapSize: 512,
     seatsCastShadowLod1: false,
@@ -63,6 +67,7 @@ export const QUALITY_PRESET_CONFIGS: Record<SpatialQualityPreset, QualityPresetC
     aoIntensity: 0,
     macroDetailEnabled: false,
     fillLightEnabled: false,
+    ambientEffectsEnabled: false,
     lod1SurfaceDist: 0,
     lod2SurfaceDist: 18,
   },
@@ -71,6 +76,7 @@ export const QUALITY_PRESET_CONFIGS: Record<SpatialQualityPreset, QualityPresetC
     maxDpr: 1.15,
     maxDprSoftware: 0.9,
     resolutionScale: 0.9,
+    antialias: true,
     shadowsEnabled: true,
     shadowMapSize: 1024,
     seatsCastShadowLod1: false,
@@ -89,6 +95,7 @@ export const QUALITY_PRESET_CONFIGS: Record<SpatialQualityPreset, QualityPresetC
     aoIntensity: 0.45,
     macroDetailEnabled: true,
     fillLightEnabled: true,
+    ambientEffectsEnabled: true,
     lod1SurfaceDist: 16,
     lod2SurfaceDist: 64,
   },
@@ -97,6 +104,7 @@ export const QUALITY_PRESET_CONFIGS: Record<SpatialQualityPreset, QualityPresetC
     maxDpr: 1.5,
     maxDprSoftware: 1.0,
     resolutionScale: 1.0,
+    antialias: true,
     shadowsEnabled: true,
     shadowMapSize: 2048,
     seatsCastShadowLod1: true,
@@ -115,6 +123,7 @@ export const QUALITY_PRESET_CONFIGS: Record<SpatialQualityPreset, QualityPresetC
     aoIntensity: 0.75,
     macroDetailEnabled: true,
     fillLightEnabled: true,
+    ambientEffectsEnabled: true,
     lod1SurfaceDist: 25,
     lod2SurfaceDist: 92,
   },
@@ -123,6 +132,7 @@ export const QUALITY_PRESET_CONFIGS: Record<SpatialQualityPreset, QualityPresetC
     maxDpr: 2.0,
     maxDprSoftware: 1.0,
     resolutionScale: 1.0,
+    antialias: true,
     shadowsEnabled: true,
     shadowMapSize: 2048,
     seatsCastShadowLod1: true,
@@ -141,10 +151,19 @@ export const QUALITY_PRESET_CONFIGS: Record<SpatialQualityPreset, QualityPresetC
     aoIntensity: 0.92,
     macroDetailEnabled: true,
     fillLightEnabled: true,
+    ambientEffectsEnabled: true,
     lod1SurfaceDist: 38,
     lod2SurfaceDist: 112,
   },
 };
+
+/**
+ * Every fresh page load of STADIUMX must always start at LOW graphics quality,
+ * ignoring any prior localStorage settings or automatic hardware upgrades.
+ */
+export function getInitialQualityPreset(): SpatialQualityPreset {
+  return DEFAULT_QUALITY_PRESET;
+}
 
 export function detectRecommendedQualityPreset(params: {
   isSoftwareGl: boolean;

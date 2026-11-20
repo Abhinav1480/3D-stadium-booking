@@ -4,7 +4,7 @@ import type {
   StadiumSpec,
   ViewTelemetryBreakdown,
 } from '../shared/stadiumSpec';
-import { resolveSeatAvailabilityStatus } from '../shared/seatingSpatial';
+import { getInitialQualityPreset, resolveSeatAvailabilityStatus } from '../shared/seatingSpatial';
 
 export interface StaticSeatRecord {
   id: number;
@@ -256,7 +256,7 @@ interface StadiumState {
   selectAndInspectSeat: (seat: StaticSeatRecord) => boolean;
   setSeatViewLook: (yawDeg: number, pitchDeg: number, fov?: number) => void;
   setTimeOfDayHours: (hours: number) => void;
-  setQualityPreset: (preset: QualityPreset, persist?: boolean) => void;
+  setQualityPreset: (preset: QualityPreset) => void;
   setIs2DFallback: (val: boolean) => void;
   setIsHudCollapsed: (val: boolean) => void;
   setIsStadiumControlsOpen: (val: boolean) => void;
@@ -319,23 +319,8 @@ export const useStadiumStore = create<StadiumState>((set, get) => ({
   seatVisualMode: 'REALISTIC',
   introPlaying: true,
   timeOfDayHours: 15.5,
-  qualityPreset: (() => {
-    if (typeof window !== 'undefined') {
-      const saved = window.localStorage?.getItem('stadiumx_quality_preset');
-      if (saved === 'LOW' || saved === 'MEDIUM' || saved === 'HIGH' || saved === 'ULTRA') {
-        return saved;
-      }
-      if (window.innerWidth < 680) return 'LOW';
-    }
-    return 'HIGH';
-  })(),
-  qualityPresetManual: (() => {
-    if (typeof window !== 'undefined') {
-      const saved = window.localStorage?.getItem('stadiumx_quality_preset');
-      return saved === 'LOW' || saved === 'MEDIUM' || saved === 'HIGH' || saved === 'ULTRA';
-    }
-    return false;
-  })(),
+  qualityPreset: getInitialQualityPreset(),
+  qualityPresetManual: false,
   is2DFallback: false,
   isHudCollapsed: true,
   isStadiumControlsOpen: false,
@@ -640,16 +625,12 @@ export const useStadiumStore = create<StadiumState>((set, get) => ({
     })),
 
   setTimeOfDayHours: (hours) => set({ timeOfDayHours: hours }),
-  setQualityPreset: (preset, persist = true) => {
-    if (persist && typeof window !== 'undefined') {
-      try {
-        window.localStorage?.setItem('stadiumx_quality_preset', preset);
-      } catch {}
-    }
-    set((s) => ({
+  setQualityPreset: (preset) => {
+    // Session-only manual graphics selection: never persist to localStorage so every fresh page load starts at LOW
+    set({
       qualityPreset: preset,
-      qualityPresetManual: persist ? true : s.qualityPresetManual,
-    }));
+      qualityPresetManual: true,
+    });
   },
   setIs2DFallback: (val) => set({ is2DFallback: val }),
   setIsHudCollapsed: (val) => set({ isHudCollapsed: val, isStadiumControlsOpen: !val }),

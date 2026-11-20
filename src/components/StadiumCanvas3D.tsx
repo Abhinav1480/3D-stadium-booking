@@ -11,6 +11,7 @@ import * as BufferGeometryUtils from 'three/addons/utils/BufferGeometryUtils.js'
 import { useStadiumStore, type RoofMode, type StaticSeatRecord } from '../store/useStadiumStore';
 import { DEFAULT_STADIUM_SPEC } from '../shared/stadiumSpec';
 import {
+  DEFAULT_QUALITY_PRESET,
   QUALITY_PRESET_CONFIGS,
   buildSpatialSeatingIndex,
   clampStadiumCameraPosition,
@@ -18,7 +19,6 @@ import {
   computeSeatViewCamera,
   computeSeatVisualHex,
   computeStandFocusCamera,
-  detectRecommendedQualityPreset,
   estimateStadiumSurfaceY,
   intersectStadiumCursorRay,
   resolveSeatAvailabilityStatus,
@@ -688,7 +688,9 @@ export const StadiumCanvas3D: React.FC = () => {
   const flagMeshRef = useRef<THREE.InstancedMesh | null>(null);
   const crowdTimeUniformRef = useRef<{ value: number }>({ value: 0 });
   const composerRef = useRef<EffectComposer | null>(null);
+  const composerTargetRef = useRef<THREE.WebGLRenderTarget | null>(null);
   const bloomPassRef = useRef<UnrealBloomPass | null>(null);
+  const ensurePostProcessingRef = useRef<() => void>(() => {});
   const sunLightRef = useRef<THREE.DirectionalLight | null>(null);
   const fillLightRef = useRef<THREE.DirectionalLight | null>(null);
   const hemiLightRef = useRef<THREE.HemisphereLight | null>(null);
@@ -708,7 +710,9 @@ export const StadiumCanvas3D: React.FC = () => {
   // Seat Status & Quality Shader Uniform Refs
   const seatAvailModeUniformRef = useRef<{ value: number }>({ value: 0.0 });
   const seatStatusTimeUniformRef = useRef<{ value: number }>({ value: 0.35 });
-  const detailActiveUniformRef = useRef<{ value: number }>({ value: 1.0 });
+  const detailActiveUniformRef = useRef<{ value: number }>({
+    value: QUALITY_PRESET_CONFIGS[DEFAULT_QUALITY_PRESET].macroDetailEnabled ? 1.0 : 0.0,
+  });
   const hasAnyHeldRef = useRef<boolean>(false);
   const heroStatusAttrRef = useRef<THREE.InstancedBufferAttribute | null>(null);
   const hiddenCrowdSlotsRef = useRef<Array<{ idx: number; matrix: THREE.Matrix4 }>>([]);
@@ -741,24 +745,8 @@ export const StadiumCanvas3D: React.FC = () => {
     requestRenderRef.current();
   }, [seatVisualMode]);
 
-  // Auto-detect recommended Quality Preset on first visit when no saved override exists
-  useEffect(() => {
-    try {
-      const saved = window.localStorage?.getItem('stadiumx_quality_preset');
-      if (!saved) {
-        const navAny = navigator as Navigator & { deviceMemory?: number };
-        const rec = detectRecommendedQualityPreset({
-          isSoftwareGl,
-          viewportWidth: window.innerWidth,
-          hardwareConcurrency: navigator.hardwareConcurrency,
-          deviceMemory: navAny.deviceMemory,
-        });
-        useStadiumStore.getState().setQualityPreset(rec, false);
-      }
-    } catch {}
-  }, []);
-
-  // Sync Quality Preset dynamically across all 9 dimensions (Resolution Scale, DPR, Shadows, Bloom, AO, Crowd, Anisotropy, Macro Detail, Fill Light)
+  // Sync Quality Preset dynamically across all rendering dimensions (Resolution Scale, DPR, Shadows, Bloom, AO, Crowd, Anisotropy, Macro Detail, Fill Light, Ambient Effects)
+  // Note: Initial quality is permanently LOW on every page load (no auto-detection upgrades or localStorage restoration).
   useEffect(() => {
     const renderer = rendererRef.current;
     const sun = sunLightRef.current;
@@ -766,12 +754,17 @@ export const StadiumCanvas3D: React.FC = () => {
     if (!renderer || !sun) return;
 
     const cfg = QUALITY_PRESET_CONFIGS[qualityPreset];
+    if (!isSoftwareGl && cfg.bloomEnabled && !composerRef.current) {
+      ensurePostProcessingRef.current();
+    }
+
     const baseDpr = isSoftwareGl
       ? cfg.maxDprSoftware
       : Math.min(window.devicePixelRatio || 1, cfg.maxDpr);
-    renderer.setPixelRatio(Math.max(0.5, baseDpr * cfg.resolutionScale));
+    const effectiveRatio = Math.max(0.5, baseDpr * cfg.resolutionScale);
+    renderer.setPixelRatio(effectiveRatio);
     if (composerRef.current) {
-      composerRef.current.setPixelRatio(Math.max(0.5, baseDpr * cfg.resolutionScale));
+      composerRef.current.setPixelRatio(effectiveRatio);
       if (bloomPassRef.current && canvasMountRef.current) {
         const w = canvasMountRef.current.clientWidth || window.innerWidth;
         const h = canvasMountRef.current.clientHeight || window.innerHeight;
@@ -788,6 +781,21 @@ export const StadiumCanvas3D: React.FC = () => {
     if (fill) {
       fill.visible = cfg.fillLightEnabled;
     }
+    if (flagMeshRef.current) {
+      flagMeshRef.current.visible = cfg.ambientEffectsEnabled;
+    }
+
+    const hr = stateRef.current.timeOfDayHours;
+    const isNight = hr >= 18.5 || hr <= 6.5;
+    const isDusk = hr >= 16.8 && hr < 18.5;
+    if (floodConesGroupRef.current && floodConeMatRef.current) {
+      floodConesGroupRef.current.visible = cfg.ambientEffectsEnabled && (isNight || isDusk);
+      if (isNight) floodConeMatRef.current.opacity = 0.065;
+      else if (isDusk) floodConeMatRef.current.opacity = 0.035;
+    }
+    nightSpotLightsRef.current.forEach((sl) => {
+      sl.intensity = !cfg.ambientEffectsEnabled ? 0 : isNight ? 1.15 : isDusk ? 0.55 : 0;
+    });
 
     if (enableShadows && sun.shadow.mapSize.width !== cfg.shadowMapSize) {
       sun.shadow.mapSize.set(cfg.shadowMapSize, cfg.shadowMapSize);
@@ -1755,12 +1763,13 @@ export const StadiumCanvas3D: React.FC = () => {
       ledRibbonMaterialsRef.current.forEach((m) => {
         m.emissiveIntensity = 1.25;
       });
+      const allowAmbient = QUALITY_PRESET_CONFIGS[stateRef.current.qualityPreset].ambientEffectsEnabled;
       if (floodConesGroupRef.current && floodConeMatRef.current) {
-        floodConesGroupRef.current.visible = true;
+        floodConesGroupRef.current.visible = allowAmbient;
         floodConeMatRef.current.opacity = 0.065;
       }
       nightSpotLightsRef.current.forEach((sl) => {
-        sl.intensity = 1.15;
+        sl.intensity = allowAmbient ? 1.15 : 0;
       });
       roofMaterialsRef.current.forEach((m) => {
         m.emissive.set('#1E304A');
@@ -1802,12 +1811,13 @@ export const StadiumCanvas3D: React.FC = () => {
       ledRibbonMaterialsRef.current.forEach((m) => {
         m.emissiveIntensity = 1.05;
       });
+      const allowAmbient = QUALITY_PRESET_CONFIGS[stateRef.current.qualityPreset].ambientEffectsEnabled;
       if (floodConesGroupRef.current && floodConeMatRef.current) {
-        floodConesGroupRef.current.visible = true;
+        floodConesGroupRef.current.visible = allowAmbient;
         floodConeMatRef.current.opacity = 0.035;
       }
       nightSpotLightsRef.current.forEach((sl) => {
-        sl.intensity = 0.55;
+        sl.intensity = allowAmbient ? 0.55 : 0;
       });
       roofMaterialsRef.current.forEach((m) => {
         m.emissive.set('#4D3224');
@@ -1886,7 +1896,7 @@ export const StadiumCanvas3D: React.FC = () => {
 
     const initialPresetCfg = QUALITY_PRESET_CONFIGS[stateRef.current.qualityPreset];
     const renderer = new THREE.WebGLRenderer({
-      antialias: !isSoftwareGl,
+      antialias: !isSoftwareGl && initialPresetCfg.antialias,
       powerPreference: 'high-performance',
       preserveDrawingBuffer: isSoftwareGl,
     });
@@ -1933,24 +1943,38 @@ export const StadiumCanvas3D: React.FC = () => {
     camera.lookAt(0, 4, -8);
     cameraRef.current = camera;
 
-    let composerTarget: THREE.WebGLRenderTarget | null = null;
-    if (!isSoftwareGl) {
-      composerTarget = new THREE.WebGLRenderTarget(width, height, {
+    // Lazily allocate post-processing bloom + 4x MSAA target only when HIGH/ULTRA is enabled
+    const ensurePostProcessing = () => {
+      if (isSoftwareGl || composerRef.current || disposed) return;
+      const w = container.clientWidth || window.innerWidth;
+      const h = container.clientHeight || window.innerHeight;
+      const activeCfg = QUALITY_PRESET_CONFIGS[stateRef.current.qualityPreset];
+      const target = new THREE.WebGLRenderTarget(w, h, {
         type: THREE.HalfFloatType,
         samples: 4,
       });
-      const composer = new EffectComposer(renderer, composerTarget);
+      const composer = new EffectComposer(renderer, target);
+      composer.setPixelRatio(renderer.getPixelRatio());
+      composer.setSize(w, h);
       composer.addPass(new RenderPass(scene, camera));
       const bloomPass = new UnrealBloomPass(
-        new THREE.Vector2(width, height),
+        new THREE.Vector2(
+          activeCfg.bloomHalfRes ? Math.max(1, Math.floor(w * 0.5)) : w,
+          activeCfg.bloomHalfRes ? Math.max(1, Math.floor(h * 0.5)) : h
+        ),
         0.12,
         0.28,
         1.32
       );
       composer.addPass(bloomPass);
       composer.addPass(new OutputPass());
+      composerTargetRef.current = target;
       composerRef.current = composer;
       bloomPassRef.current = bloomPass;
+    };
+    ensurePostProcessingRef.current = ensurePostProcessing;
+    if (!isSoftwareGl && initialPresetCfg.bloomEnabled) {
+      ensurePostProcessing();
     }
 
     const controls = new OrbitControls(camera, renderer.domElement);
@@ -1992,9 +2016,9 @@ export const StadiumCanvas3D: React.FC = () => {
 
     const sunLight = new THREE.DirectionalLight('#FFFBEB', isSoftwareGl ? 2.45 : 2.55);
     sunLight.position.set(-110, 135, 85);
-    sunLight.castShadow = !isSoftwareGl;
-    sunLight.shadow.mapSize.width = 2048;
-    sunLight.shadow.mapSize.height = 2048;
+    sunLight.castShadow = !isSoftwareGl && initialPresetCfg.shadowsEnabled;
+    sunLight.shadow.mapSize.width = initialPresetCfg.shadowMapSize;
+    sunLight.shadow.mapSize.height = initialPresetCfg.shadowMapSize;
     sunLight.shadow.camera.near = 10;
     sunLight.shadow.camera.far = 380;
     const d = 140;
@@ -2009,6 +2033,7 @@ export const StadiumCanvas3D: React.FC = () => {
 
     const stadiumFillLight = new THREE.DirectionalLight('#BFDBFE', 0.88);
     stadiumFillLight.position.set(120, 95, -100);
+    stadiumFillLight.visible = initialPresetCfg.fillLightEnabled;
     scene.add(stadiumFillLight);
     fillLightRef.current = stadiumFillLight;
 
@@ -2287,6 +2312,7 @@ export const StadiumCanvas3D: React.FC = () => {
     }
     flagMesh.instanceMatrix.needsUpdate = true;
     if (flagMesh.instanceColor) flagMesh.instanceColor.needsUpdate = true;
+    flagMesh.visible = initialPresetCfg.ambientEffectsEnabled;
     flagMeshRef.current = flagMesh;
     scene.add(flagMesh);
 
@@ -3484,6 +3510,11 @@ export const StadiumCanvas3D: React.FC = () => {
           qualityPreset: stateRef.current.qualityPreset,
           isSoftwareGl,
           dpr: renderer.getPixelRatio(),
+          shadowsEnabled: renderer.shadowMap.enabled,
+          bloomActive: useBloom,
+          composerAllocated: Boolean(composerRef.current),
+          antialias: Boolean(renderer.getContextAttributes()?.antialias),
+          ambientEffectsEnabled: activePresetCfg.ambientEffectsEnabled,
           cameraMode: mode,
           seatFlyActive:
             seatFlyAnimRef.current.active || exitFlyAnimRef.current.active,
@@ -3826,7 +3857,11 @@ export const StadiumCanvas3D: React.FC = () => {
       renderer.domElement.removeEventListener('pointerleave', onPointerLeave);
       renderer.domElement.removeEventListener('wheel', onWheel, { capture: true });
       controls.dispose();
-      composerTarget?.dispose();
+      ensurePostProcessingRef.current = () => {};
+      composerTargetRef.current?.dispose();
+      composerTargetRef.current = null;
+      composerRef.current = null;
+      bloomPassRef.current = null;
       renderer.dispose();
     };
   }, []);

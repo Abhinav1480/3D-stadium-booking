@@ -397,11 +397,13 @@ export const BottomControlDock: React.FC<{
                     {crowdAudioEnabled ? 'Audio: On' : 'Audio: Muted'}
                   </button>
 
-                  <div className="flex items-center gap-1 bg-[#0B0F17] p-0.5 rounded-lg border border-white/10">
+                  <div className="flex items-center gap-1 bg-[#0B0F17] p-0.5 rounded-lg border border-white/10" role="group" aria-label="Graphics Quality">
                     {(['LOW', 'MEDIUM', 'HIGH', 'ULTRA'] as QualityPreset[]).map((q) => (
                       <button
                         key={q}
                         type="button"
+                        aria-pressed={qualityPreset === q}
+                        aria-label={`Graphics quality ${q}`}
                         onClick={() => setQualityPreset(q)}
                         className={`px-2 py-0.5 rounded text-[10px] font-mono font-medium transition-colors ${
                           qualityPreset === q

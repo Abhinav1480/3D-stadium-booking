@@ -8,6 +8,7 @@ import {
   type SeatWithInventory,
 } from './stadiumSpec';
 import {
+  DEFAULT_QUALITY_PRESET,
   QUALITY_PRESET_CONFIGS,
   buildSpatialSeatingIndex,
   clampStadiumCameraPosition,
@@ -16,6 +17,7 @@ import {
   computeStandFocusCamera,
   detectRecommendedQualityPreset,
   estimateStadiumSurfaceY,
+  getInitialQualityPreset,
   intersectStadiumCursorRay,
   resolveSeatAvailabilityStatus,
   selectChunkLod,
@@ -168,12 +170,22 @@ test('intersectStadiumCursorRay hits pitch and North Stand bowl cleanly for curs
   assert.ok(hitNorth.z < -75 && hitNorth.y > 5.0, `Expected North bowl hit, got (${hitNorth.x}, ${hitNorth.y}, ${hitNorth.z})`);
 });
 
-test('QUALITY_PRESET_CONFIGS and detectRecommendedQualityPreset scale all dimensions cleanly', () => {
+test('QUALITY_PRESET_CONFIGS and permanent LOW startup default enforce genuine optimizations', async () => {
+  assert.equal(DEFAULT_QUALITY_PRESET, 'LOW');
+  assert.equal(getInitialQualityPreset(), 'LOW');
+
+  assert.equal(QUALITY_PRESET_CONFIGS.LOW.antialias, false);
   assert.equal(QUALITY_PRESET_CONFIGS.LOW.shadowsEnabled, false);
   assert.equal(QUALITY_PRESET_CONFIGS.LOW.useSimpleSeatMaterial, true);
   assert.equal(QUALITY_PRESET_CONFIGS.LOW.maxCrowd, 0);
   assert.equal(QUALITY_PRESET_CONFIGS.LOW.bloomEnabled, false);
+  assert.equal(QUALITY_PRESET_CONFIGS.LOW.aoEnabled, false);
   assert.equal(QUALITY_PRESET_CONFIGS.LOW.macroDetailEnabled, false);
+  assert.equal(QUALITY_PRESET_CONFIGS.LOW.fillLightEnabled, false);
+  assert.equal(QUALITY_PRESET_CONFIGS.LOW.ambientEffectsEnabled, false);
+  assert.equal(QUALITY_PRESET_CONFIGS.LOW.maxAnisotropyCap, 1);
+  assert.ok(QUALITY_PRESET_CONFIGS.LOW.resolutionScale < 1);
+  assert.ok(QUALITY_PRESET_CONFIGS.LOW.maxDpr < 1);
 
   assert.equal(QUALITY_PRESET_CONFIGS.MEDIUM.shadowMapSize, 1024);
   assert.equal(QUALITY_PRESET_CONFIGS.HIGH.shadowMapSize, 2048);
@@ -184,6 +196,40 @@ test('QUALITY_PRESET_CONFIGS and detectRecommendedQualityPreset scale all dimens
   assert.equal(detectRecommendedQualityPreset({ isSoftwareGl: false, viewportWidth: 390, hardwareConcurrency: 4 }), 'LOW');
   assert.equal(detectRecommendedQualityPreset({ isSoftwareGl: true, viewportWidth: 1440, hardwareConcurrency: 8 }), 'MEDIUM');
   assert.equal(detectRecommendedQualityPreset({ isSoftwareGl: false, viewportWidth: 1440, hardwareConcurrency: 8, deviceMemory: 8 }), 'HIGH');
+
+  // Verify Zustand store always starts at LOW even when stale ULTRA is in localStorage,
+  // and manual session upgrades do not write back to localStorage.
+  const storageMap = new Map<string, string>([['stadiumx_quality_preset', 'ULTRA']]);
+  let setItemCalls = 0;
+  const origWindow = (globalThis as any).window;
+  (globalThis as any).window = {
+    innerWidth: 1920,
+    localStorage: {
+      getItem: (k: string) => storageMap.get(k) ?? null,
+      setItem: (k: string, v: string) => {
+        setItemCalls += 1;
+        storageMap.set(k, v);
+      },
+    },
+  };
+  try {
+    const { useStadiumStore } = await import('../store/useStadiumStore');
+    assert.equal(useStadiumStore.getState().qualityPreset, 'LOW');
+    assert.equal(useStadiumStore.getState().qualityPresetManual, false);
+
+    useStadiumStore.getState().setQualityPreset('ULTRA');
+    assert.equal(useStadiumStore.getState().qualityPreset, 'ULTRA');
+    assert.equal(setItemCalls, 0, 'Manual quality changes must never persist to localStorage');
+
+    useStadiumStore.getState().setQualityPreset('LOW');
+    assert.equal(useStadiumStore.getState().qualityPreset, 'LOW');
+  } finally {
+    if (origWindow === undefined) {
+      delete (globalThis as any).window;
+    } else {
+      (globalThis as any).window = origWindow;
+    }
+  }
 });
 
 test('resolveSeatAvailabilityStatus distinguishes all 6 seat statuses and computes live countdown', () => {
